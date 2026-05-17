@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@id/nav_market"
+        android:icon="@drawable/ic_market"
+        android:title="@string/tab_market" />
+    <item
+        android:id="@id/nav_news"
+        android:icon="@drawable/ic_news"
+        android:title="@string/tab_news" />
+    <item
+        android:id="@id/nav_ideas"
+        android:icon="@drawable/ic_ideas"
+        android:title="@string/tab_ideas" />
+    <item
+        android:id="@id/nav_watchlist"
+        android:icon="@drawable/ic_watchlist"
+        android:title="@string/tab_watchlist" />
+    <item
+        android:id="@id/nav_more"
+        android:icon="@drawable/ic_more"
+        android:title="@string/tab_more" />
+</menu>

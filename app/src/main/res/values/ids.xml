@@ -1,0 +1,7 @@
+<resources>
+    <item name="nav_market" type="id" />
+    <item name="nav_news" type="id" />
+    <item name="nav_ideas" type="id" />
+    <item name="nav_watchlist" type="id" />
+    <item name="nav_more" type="id" />
+</resources>
