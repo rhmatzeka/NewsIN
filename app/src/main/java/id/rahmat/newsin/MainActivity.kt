@@ -13,6 +13,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
+import android.text.Html
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -63,6 +64,9 @@ class MainActivity : AppCompatActivity() {
     private val imageExecutor: ExecutorService = Executors.newFixedThreadPool(3)
     private val handler = Handler(Looper.getMainLooper())
     private val imageCache = ConcurrentHashMap<String, Bitmap>()
+    private val articleContentCache = ConcurrentHashMap<String, String>()
+    private val articleContentErrors = ConcurrentHashMap<String, String>()
+    private val articleContentLoading = ConcurrentHashMap<String, Boolean>()
     private val chatMessages = mutableListOf<ChatMessage>()
     private var marketAssets = emptyList<MarketAsset>()
     private var newsArticles = emptyList<NewsArticle>()
@@ -516,6 +520,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openNewsDetail(article: NewsArticle) {
+        requestFullArticle(article)
         val screen = screenScroll()
         screen.addView(backBar("Berita") { renderNews() })
         screen.addView(articleImage(article, 210))
@@ -527,11 +532,11 @@ class MainActivity : AppCompatActivity() {
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(actionButton("Bagikan") { shareArticle(article) }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(8) })
-            addView(actionButton("Simpan") { it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) }, LinearLayout.LayoutParams(0, dp(44), 1f))
+            addView(actionButton("Buka Sumber") { openArticleSource(article) }, LinearLayout.LayoutParams(0, dp(44), 1f))
         }
         screen.addView(actions)
         screen.addGap(16)
-        screen.addView(text(article.content, 16f, R.color.newsin_text_secondary))
+        screen.addView(articleContentCard(article))
         screen.addGap(18)
         screen.addView(sectionHeader("Aset Terkait"))
         screen.addGap(8)
@@ -546,6 +551,116 @@ class MainActivity : AppCompatActivity() {
             screen.addGap(10)
         }
         displayScroll(screen)
+    }
+
+    private fun articleContentCard(article: NewsArticle): View = card().apply {
+        addView(text("Artikel Lengkap", 18f, R.color.newsin_text_primary, Typeface.BOLD))
+        addGap(8)
+        val fullText = articleContentCache[article.id]
+        val error = articleContentErrors[article.id]
+        when {
+            fullText != null -> addView(text(fullText, 16f, R.color.newsin_text_secondary))
+            articleContentLoading[article.id] == true -> {
+                addView(text(cleanSummary(article), 16f, R.color.newsin_text_secondary))
+                addGap(12)
+                addView(text("Mengambil artikel lengkap dari sumber asli...", 13f, R.color.newsin_accent, Typeface.BOLD))
+            }
+            error != null -> {
+                addView(text(cleanSummary(article), 16f, R.color.newsin_text_secondary))
+                addGap(12)
+                addView(text("Artikel penuh belum bisa dimuat: $error", 13f, R.color.newsin_negative, Typeface.BOLD))
+            }
+            else -> addView(text(cleanSummary(article), 16f, R.color.newsin_text_secondary))
+        }
+    }
+
+    private fun requestFullArticle(article: NewsArticle) {
+        val url = article.sourceUrl?.takeIf { it.startsWith("https://") } ?: return
+        if (articleContentCache.containsKey(article.id) ||
+            articleContentErrors.containsKey(article.id) ||
+            articleContentLoading.putIfAbsent(article.id, true) == true
+        ) return
+        executor.execute {
+            val result = runCatching { fetchArticleText(url) }
+            runOnUiThread {
+                articleContentLoading.remove(article.id)
+                result.onSuccess { content ->
+                    if (content.length > cleanSummary(article).length) {
+                        articleContentCache[article.id] = content
+                    } else {
+                        articleContentErrors[article.id] = "konten sumber terlalu pendek"
+                    }
+                }.onFailure {
+                    articleContentErrors[article.id] = it.message ?: it.javaClass.simpleName
+                }
+                openNewsDetail(article)
+            }
+        }
+    }
+
+    private fun fetchArticleText(url: String): String {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 10_000
+            readTimeout = 10_000
+            setRequestProperty("User-Agent", "Mozilla/5.0 NewsIN Android")
+            setRequestProperty("Accept", "text/html,application/xhtml+xml")
+        }
+        return try {
+            if (connection.responseCode !in 200..299) error("HTTP ${connection.responseCode}")
+            val html = connection.inputStream.bufferedReader().use { it.readText() }
+            extractReadableArticle(html)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun extractReadableArticle(html: String): String {
+        val articleHtml = Regex(
+            "<article[\\s\\S]*?</article>",
+            setOf(RegexOption.IGNORE_CASE)
+        ).find(html)?.value ?: html
+        val withoutNoise = articleHtml
+            .replace(Regex("<script[\\s\\S]*?</script>", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("<style[\\s\\S]*?</style>", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("<nav[\\s\\S]*?</nav>", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("<footer[\\s\\S]*?</footer>", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("<aside[\\s\\S]*?</aside>", RegexOption.IGNORE_CASE), " ")
+        val paragraphs = Regex("<p\\b[^>]*>([\\s\\S]*?)</p>", RegexOption.IGNORE_CASE)
+            .findAll(withoutNoise)
+            .map { htmlToText(it.groupValues[1]) }
+            .filter { paragraph ->
+                paragraph.length >= 45 &&
+                    !paragraph.contains("cookie", ignoreCase = true) &&
+                    !paragraph.contains("subscribe", ignoreCase = true) &&
+                    !paragraph.contains("advertisement", ignoreCase = true)
+            }
+            .distinct()
+            .take(12)
+            .toList()
+        if (paragraphs.isEmpty()) error("paragraf artikel tidak ditemukan")
+        return paragraphs.joinToString("\n\n")
+    }
+
+    private fun htmlToText(value: String): String {
+        val withBreaks = value
+            .replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
+            .replace(Regex("</(div|section|li|h\\d)>", RegexOption.IGNORE_CASE), "\n")
+        return Html.fromHtml(withBreaks, Html.FROM_HTML_MODE_LEGACY)
+            .toString()
+            .replace(Regex("[ \\t]+"), " ")
+            .replace(Regex("\\n{3,}"), "\n\n")
+            .trim()
+    }
+
+    private fun cleanSummary(article: NewsArticle): String =
+        article.content
+            .replace("[...]", "")
+            .replace("…", "")
+            .trim()
+
+    private fun openArticleSource(article: NewsArticle) {
+        val url = article.sourceUrl?.takeIf { it.startsWith("http") } ?: return
+        startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
     }
 
     private fun articleImage(article: NewsArticle, heightDp: Int, compact: Boolean = false): FrameLayout =
