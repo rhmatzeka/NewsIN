@@ -717,10 +717,26 @@ class MainActivity : AppCompatActivity() {
         }
         return try {
             if (connection.responseCode !in 200..299) return null
-            connection.inputStream.use { BitmapFactory.decodeStream(it) }
+            val bytes = connection.inputStream.use { it.readBytes() }
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = bitmapSampleSize(bounds.outWidth, bounds.outHeight, 1200, 800)
+                inPreferredConfig = Bitmap.Config.RGB_565
+            }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun bitmapSampleSize(width: Int, height: Int, maxWidth: Int, maxHeight: Int): Int {
+        if (width <= 0 || height <= 0) return 1
+        var sample = 1
+        while ((width / sample) > maxWidth || (height / sample) > maxHeight) {
+            sample *= 2
+        }
+        return sample.coerceAtLeast(1)
     }
 
     private fun actionButton(label: String, onClick: (View) -> Unit): TextView =
