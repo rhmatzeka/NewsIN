@@ -1366,8 +1366,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun sendRealAiQuestion(query: String) {
-        chatMessages.add(ChatMessage(UUID.randomUUID().toString(), query, "Baru saja", true))
+    private fun sendRealAiQuestion(query: String, visibleQuestion: String = query) {
+        chatMessages.add(ChatMessage(UUID.randomUUID().toString(), visibleQuestion, "Baru saja", true))
         chatMessages.add(ChatMessage(UUID.randomUUID().toString(), "Mengambil data real terbaru...", "Baru saja", false))
         renderActiveAiSurface()
         executor.execute {
@@ -1375,7 +1375,7 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 chatMessages.removeLastOrNull()
                 chatMessages.add(answer.getOrElse {
-                    ChatMessage(UUID.randomUUID().toString(), "Gagal mengambil data real: ${it.message}", "Baru saja", false)
+                    localAiAnswer(query, friendlyAiError(it.message.orEmpty()))
                 })
                 renderActiveAiSurface()
             }
@@ -1395,7 +1395,7 @@ class MainActivity : AppCompatActivity() {
             if (relatedAssets.isNotBlank()) append("Aset yang sedang bergerak besar: $relatedAssets. ")
             append("Jawab simpel: dampaknya apa, aset mana yang mungkin sensitif, dan risiko salah tafsirnya.")
         }
-        sendRealAiQuestion(prompt)
+        sendRealAiQuestion(prompt, "Tanyakan dampak berita: ${article.title}")
     }
 
     private fun askAiAboutAsset(asset: MarketAsset) {
@@ -1407,7 +1407,7 @@ class MainActivity : AppCompatActivity() {
             if (latestNews.isNotBlank()) append("Hubungkan dengan headline terbaru: $latestNews. ")
             append("Jelaskan apakah pergerakannya terlihat karena momentum pasar, sentimen berita, atau perlu hati-hati karena volatilitas.")
         }
-        sendRealAiQuestion(prompt)
+        sendRealAiQuestion(prompt, "Tanyakan analisis aset: ${asset.symbol}")
     }
 
     private fun renderActiveAiSurface() {
@@ -1416,7 +1416,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun answerWithConfiguredAi(query: String): ChatMessage {
         if (BuildConfig.AI_API_KEY.isBlank()) return localAiAnswer(query)
-        val response = requestAiCompletion(query)
+        val response = runCatching { requestAiCompletion(query) }.getOrElse {
+            return localAiAnswer(query, friendlyAiError(it.message.orEmpty()))
+        }
         return ChatMessage(
             id = UUID.randomUUID().toString(),
             text = response,
@@ -1427,12 +1429,17 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun localAiAnswer(query: String): ChatMessage {
+    private fun localAiAnswer(query: String, notice: String? = null): ChatMessage {
         val strongest = marketAssets.maxByOrNull { it.changePercent }
         val weakest = marketAssets.minByOrNull { it.changePercent }
         val latest = newsArticles.firstOrNull()
         val text = buildString {
-            append("AI key belum diisi, jadi ini analisis lokal dari data aplikasi. ")
+            if (notice != null) {
+                append(notice)
+                append(" Saya pakai analisis lokal dari data aplikasi. ")
+            } else {
+                append("AI key belum diisi, jadi ini analisis lokal dari data aplikasi. ")
+            }
             if (strongest != null && weakest != null) {
                 append("${strongest.symbol} paling kuat (${formatPercent(strongest.changePercent)}), ")
                 append("${weakest.symbol} paling lemah (${formatPercent(weakest.changePercent)}). ")
@@ -1441,7 +1448,8 @@ class MainActivity : AppCompatActivity() {
                 append("Headline terbaru: \"${latest.title}\". ")
                 append("Berita seperti ini perlu dicek apakah berdampak ke sentimen risiko, sektor terkait, atau hanya informasi umum. ")
             }
-            append("Pertanyaan kamu: \"$query\". Isi .env untuk jawaban AI yang lebih dalam.")
+            append("Pertanyaan kamu: \"${query.take(180)}${if (query.length > 180) "..." else ""}\". ")
+            if (notice == null) append("Isi .env untuk jawaban AI yang lebih dalam.")
         }
         return ChatMessage(
             id = UUID.randomUUID().toString(),
@@ -1481,7 +1489,7 @@ class MainActivity : AppCompatActivity() {
             connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
             val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
             val body = stream.bufferedReader().use { it.readText() }
-            if (connection.responseCode !in 200..299) error("AI HTTP ${connection.responseCode}: $body")
+            if (connection.responseCode !in 200..299) error(parseAiError(connection.responseCode, body))
             JSONObject(body)
                 .getJSONArray("choices")
                 .getJSONObject(0)
@@ -1491,6 +1499,34 @@ class MainActivity : AppCompatActivity() {
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun parseAiError(code: Int, body: String): String {
+        val parsed = runCatching {
+            val error = JSONObject(body).getJSONObject("error")
+            val type = error.optString("type")
+            val message = error.optString("message")
+            when {
+                type == "insufficient_quota" -> "Kuota AI habis atau billing belum aktif."
+                message.isNotBlank() -> message
+                else -> "AI HTTP $code"
+            }
+        }.getOrDefault("AI HTTP $code")
+        return parsed
+    }
+
+    private fun friendlyAiError(message: String): String = when {
+        message.contains("insufficient_quota", ignoreCase = true) ||
+            message.contains("Kuota AI habis", ignoreCase = true) ->
+            "Kuota AI dari API key sedang habis atau billing belum aktif."
+        message.contains("429") ->
+            "AI sedang membatasi request atau kuota akun habis."
+        message.contains("401") || message.contains("invalid", ignoreCase = true) ->
+            "API key AI tidak valid atau belum bisa dipakai."
+        message.isBlank() ->
+            "AI online belum bisa dihubungi."
+        else ->
+            "AI online belum bisa dipakai: ${message.take(120)}"
     }
 
     private fun buildAiContext(query: String): String = buildString {
