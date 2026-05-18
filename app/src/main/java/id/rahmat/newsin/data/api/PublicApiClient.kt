@@ -125,7 +125,7 @@ class PublicApiClient {
                 title = title,
                 source = source,
                 timeAgo = relativeTime(published),
-                category = "Real News",
+                category = inferNewsCategory(title, source),
                 summary = item.optString("summary").trim(),
                 content = item.optString("summary").trim(),
                 imageColor = colorFor(title.ifBlank { source }),
@@ -135,6 +135,17 @@ class PublicApiClient {
                 imageUrl = item.optString("image_url")
             )
         }.filter { it.title.isNotBlank() }
+    }
+
+    private fun inferNewsCategory(title: String, source: String): String {
+        val text = "$title $source".lowercase(Locale.US)
+        return when {
+            "nasa" in text -> "NASA"
+            "spacex" in text || "starship" in text || "falcon" in text -> "SpaceX"
+            "policy" in text || "china" in text || "europe" in text || "india" in text || "japan" in text -> "World"
+            "science" in text || "technology" in text || "cargo" in text || "station" in text -> "Technology"
+            else -> "Real News"
+        }
     }
 
     private fun request(url: String): String {

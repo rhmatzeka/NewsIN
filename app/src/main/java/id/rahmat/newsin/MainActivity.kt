@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
@@ -16,9 +18,9 @@ import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
-import android.view.Window
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -37,7 +39,6 @@ import id.rahmat.newsin.presentation.components.SparklineView
 import id.rahmat.newsin.presentation.components.addGap
 import id.rahmat.newsin.presentation.components.card
 import id.rahmat.newsin.presentation.components.chip
-import id.rahmat.newsin.presentation.components.coloredBlock
 import id.rahmat.newsin.presentation.components.dp
 import id.rahmat.newsin.presentation.components.editText
 import id.rahmat.newsin.presentation.components.horizontalChips
@@ -48,15 +49,20 @@ import id.rahmat.newsin.presentation.components.screenScroll
 import id.rahmat.newsin.presentation.components.sectionHeader
 import id.rahmat.newsin.presentation.components.text
 import id.rahmat.newsin.presentation.components.topBar
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
     private val repository = RealNewsInRepository(PublicApiClient())
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val imageExecutor: ExecutorService = Executors.newFixedThreadPool(3)
     private val handler = Handler(Looper.getMainLooper())
+    private val imageCache = ConcurrentHashMap<String, Bitmap>()
     private val chatMessages = mutableListOf<ChatMessage>()
     private var marketAssets = emptyList<MarketAsset>()
     private var newsArticles = emptyList<NewsArticle>()
@@ -66,6 +72,8 @@ class MainActivity : AppCompatActivity() {
     private var newsError: String? = null
     private var selectedMarketCategory = "Populer 🔥"
     private val marketCategories = listOf("Populer 🔥", "Indeks", "Futures Indeks", "Saham", "Kripto", "Komoditas", "Mata Uang")
+    private var selectedNewsCategory = "Real News"
+    private val newsCategories = listOf("Real News", "Latest", "NASA", "SpaceX", "World", "Technology")
     private lateinit var content: FrameLayout
     private lateinit var bottomNav: BottomNavigationView
 
@@ -114,6 +122,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         executor.shutdownNow()
+        imageExecutor.shutdownNow()
         super.onDestroy()
     }
 
@@ -384,8 +393,8 @@ class MainActivity : AppCompatActivity() {
     private fun renderNews() {
         bottomNav.visibility = View.VISIBLE
         val screen = screenScroll()
-        screen.addView(topBar("Berita") { renderSearch() })
-        screen.addView(horizontalChips(listOf("Real News", "Latest", "NASA", "SpaceX", "World", "Technology")))
+        screen.addView(topBar("Berita") { renderSearch { renderNews() } })
+        screen.addView(newsCategoryChips())
         when {
             newsLoading -> {
                 screen.addView(loadingCard("Mengambil headline real dari Spaceflight News API..."))
@@ -404,19 +413,64 @@ class MainActivity : AppCompatActivity() {
                 return
             }
         }
-        screen.addView(featuredNews(newsArticles.first()))
+        val visibleNews = filteredNewsArticles()
+        if (visibleNews.isEmpty()) {
+            screen.addView(emptyNewsCategoryCard())
+            displayScroll(screen)
+            return
+        }
+        screen.addView(newsBrief(visibleNews))
         screen.addGap(10)
-        screen.addView(sectionHeader("Berita Terbaru", "Sumber API"))
+        screen.addView(featuredNews(visibleNews.first()))
         screen.addGap(10)
-        newsArticles.drop(1).forEach { article ->
+        screen.addView(sectionHeader(if (selectedNewsCategory == "Latest") "Berita Terbaru" else selectedNewsCategory, "${visibleNews.size} artikel"))
+        screen.addGap(10)
+        visibleNews.drop(1).forEach { article ->
             screen.addView(newsSmall(article))
             screen.addGap(10)
         }
         displayScroll(screen)
     }
 
+    private fun newsCategoryChips(): HorizontalScrollView {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(4), 0, dp(12))
+        }
+        newsCategories.forEach { category ->
+            row.addView(chip(category, category == selectedNewsCategory).apply {
+                setOnClickListener {
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    selectedNewsCategory = category
+                    renderNews()
+                }
+            })
+        }
+        return HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(row)
+        }
+    }
+
+    private fun filteredNewsArticles(): List<NewsArticle> = when (selectedNewsCategory) {
+        "Latest", "Real News" -> newsArticles
+        else -> newsArticles.filter { it.category == selectedNewsCategory }
+    }
+
+    private fun newsBrief(articles: List<NewsArticle>): View = card().apply {
+        addView(text("${articles.size} headline aktif", 18f, R.color.newsin_text_primary, Typeface.BOLD))
+        addGap(4)
+        addView(text("Sumber: Spaceflight News API dari public-apis • Filter: $selectedNewsCategory", 12f, R.color.newsin_text_muted))
+    }
+
+    private fun emptyNewsCategoryCard(): View = card().apply {
+        addView(text("Belum ada berita $selectedNewsCategory", 16f, R.color.newsin_text_primary, Typeface.BOLD))
+        addGap(6)
+        addView(text("Coba kategori Latest atau Real News untuk melihat semua headline terbaru yang tersedia dari API.", 13f, R.color.newsin_text_secondary))
+    }
+
     private fun featuredNews(article: NewsArticle): View = card().apply {
-        addView(coloredBlock(article.imageColor, 154))
+        addView(articleImage(article, 172))
         addGap(12)
         addView(text(article.title, 20f, R.color.newsin_text_primary, Typeface.BOLD))
         addGap(8)
@@ -434,10 +488,7 @@ class MainActivity : AppCompatActivity() {
             background = rounded(R.color.newsin_card, 8, R.color.newsin_hairline)
             setOnClickListener { openNewsDetail(article) }
         }
-        row.addView(FrameLayout(this).apply {
-            background = roundedRaw(article.imageColor, 8)
-            if (article.isPro) addView(proBadge(), FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(24), Gravity.TOP or Gravity.END))
-        }, LinearLayout.LayoutParams(dp(92), dp(84)).apply { marginEnd = dp(12) })
+        row.addView(articleImage(article, 84, compact = true), LinearLayout.LayoutParams(dp(92), dp(84)).apply { marginEnd = dp(12) })
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(text(article.title, 15f, R.color.newsin_text_primary, Typeface.BOLD))
@@ -467,7 +518,7 @@ class MainActivity : AppCompatActivity() {
     private fun openNewsDetail(article: NewsArticle) {
         val screen = screenScroll()
         screen.addView(backBar("Berita") { renderNews() })
-        screen.addView(coloredBlock(article.imageColor, 188))
+        screen.addView(articleImage(article, 210))
         screen.addGap(14)
         screen.addView(text(article.title, 24f, R.color.newsin_text_primary, Typeface.BOLD))
         screen.addGap(8)
@@ -495,6 +546,58 @@ class MainActivity : AppCompatActivity() {
             screen.addGap(10)
         }
         displayScroll(screen)
+    }
+
+    private fun articleImage(article: NewsArticle, heightDp: Int, compact: Boolean = false): FrameLayout =
+        FrameLayout(this).apply {
+            background = roundedRaw(article.imageColor, 8)
+            clipToOutline = true
+            val image = ImageView(context).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setBackgroundColor(article.imageColor)
+            }
+            addView(image, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            addView(text(if (compact) article.category else "NewsIN", if (compact) 10f else 13f, R.color.white, Typeface.BOLD).apply {
+                alpha = 0.9f
+                setPadding(dp(10), dp(7), dp(10), dp(7))
+                background = roundedRaw(Color.argb(110, 0, 0, 0), 8)
+            }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).apply {
+                leftMargin = dp(8)
+                topMargin = dp(8)
+            })
+            if (article.isPro) addView(proBadge(), FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(24), Gravity.TOP or Gravity.END))
+            loadArticleImage(article, image)
+            if (layoutParams == null) layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(heightDp))
+        }
+
+    private fun loadArticleImage(article: NewsArticle, imageView: ImageView) {
+        val url = article.imageUrl?.takeIf { it.startsWith("https://") } ?: return
+        imageView.tag = url
+        imageCache[url]?.let {
+            imageView.setImageBitmap(it)
+            return
+        }
+        imageExecutor.execute {
+            val bitmap = runCatching { downloadBitmap(url) }.getOrNull() ?: return@execute
+            imageCache[url] = bitmap
+            runOnUiThread {
+                if (imageView.tag == url) imageView.setImageBitmap(bitmap)
+            }
+        }
+    }
+
+    private fun downloadBitmap(url: String): Bitmap? {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 8_000
+            readTimeout = 8_000
+            setRequestProperty("User-Agent", "NewsIN Android")
+        }
+        return try {
+            if (connection.responseCode !in 200..299) return null
+            connection.inputStream.use { BitmapFactory.decodeStream(it) }
+        } finally {
+            connection.disconnect()
+        }
     }
 
     private fun actionButton(label: String, onClick: (View) -> Unit): TextView =
@@ -780,10 +883,13 @@ class MainActivity : AppCompatActivity() {
             addView(text(formatPercent(asset.changePercent), 13f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
         }
 
-    private fun renderSearch() {
+    private fun renderSearch(onBack: () -> Unit = { renderMarket() }) {
         bottomNav.visibility = View.GONE
         val screen = screenScroll()
-        screen.addView(backBar("Cari") { bottomNav.visibility = View.VISIBLE; renderMarket() })
+        screen.addView(backBar("Cari") {
+            bottomNav.visibility = View.VISIBLE
+            onBack()
+        })
         val input = editText("Cari berita atau aset")
         screen.addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
         screen.addGap(16)
@@ -849,12 +955,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun searchNews(query: String): List<NewsArticle> {
-        if (query.isBlank()) return newsArticles.take(5)
+        if (query.isBlank()) return filteredNewsArticles().take(8)
         val needle = query.lowercase(Locale.ROOT)
         return newsArticles.filter {
             it.title.lowercase(Locale.ROOT).contains(needle) ||
                 it.summary.lowercase(Locale.ROOT).contains(needle) ||
-                it.source.lowercase(Locale.ROOT).contains(needle)
+                it.source.lowercase(Locale.ROOT).contains(needle) ||
+                it.category.lowercase(Locale.ROOT).contains(needle)
         }.take(12)
     }
 
