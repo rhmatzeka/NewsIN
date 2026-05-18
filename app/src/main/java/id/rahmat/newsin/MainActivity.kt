@@ -73,6 +73,8 @@ class MainActivity : AppCompatActivity() {
     private var activeAiSurface = AiSurface.PAGE
     private var marketAssets = emptyList<MarketAsset>()
     private var newsArticles = emptyList<NewsArticle>()
+    private val watchlistSymbols = linkedSetOf("BTC", "ETH", "SOL")
+    private var watchlistEditMode = false
     private var marketLoading = false
     private var newsLoading = false
     private var marketError: String? = null
@@ -394,7 +396,14 @@ class MainActivity : AppCompatActivity() {
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(iconButton("Cari", "⌕"), LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(8) })
             addView(iconButton("Peringatan", "♧"), LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(8) })
-            addView(text("★", 28f, R.color.newsin_accent, Typeface.BOLD).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(dp(42), dp(42)))
+            addView(text(if (isInWatchlist(asset)) "★" else "☆", 28f, if (isInWatchlist(asset)) R.color.newsin_accent else R.color.newsin_text_muted, Typeface.BOLD).apply {
+                gravity = Gravity.CENTER
+                contentDescription = "Watchlist"
+                setOnClickListener {
+                    toggleWatchlist(asset)
+                    openMarketDetail(asset)
+                }
+            }, LinearLayout.LayoutParams(dp(42), dp(42)))
         }
 
     private fun renderNews() {
@@ -988,25 +997,136 @@ class MainActivity : AppCompatActivity() {
     private fun renderWatchlist() {
         bottomNav.visibility = View.VISIBLE
         val screen = screenScroll()
-        screen.addView(toolbarWithActions("Portofolio Saya", "✎", "+"))
+        screen.addView(watchlistToolbar())
         if (marketAssets.isEmpty()) {
-            screen.addView(loadingCard("Mengambil watchlist real dari CoinGecko..."))
+            screen.addView(loadingCard("Mengambil aset real untuk watchlist..."))
             loadMarkets { renderWatchlist() }
         } else {
-            listOf(
-                id.rahmat.newsin.domain.model.WatchlistGroup("Crypto Watchlist Real", marketAssets.size, marketAssets)
-            ).forEach { group ->
-            screen.addView(card().apply {
-                addView(text(group.name, 18f, R.color.newsin_text_primary, Typeface.BOLD))
-                addView(text("${group.symbolCount} simbol", 12f, R.color.newsin_text_muted))
-                addGap(10)
-                group.assets.take(3).forEach { addView(compactAsset(it)) }
-            })
+            val watched = watchlistAssets()
+            screen.addView(watchlistSummaryCard(watched))
             screen.addGap(10)
+            if (watched.isEmpty()) {
+                screen.addView(emptyWatchlistCard())
+            } else {
+                watched.forEach {
+                    screen.addView(watchlistAssetItem(it))
+                    screen.addGap(10)
+                }
             }
         }
-        screen.addView(actionButton("Portofolio Baru") { it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
+        screen.addGap(4)
+        screen.addView(actionButton("Tambah Aset ke Watchlist") { renderWatchlistPicker() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
         displayScroll(screen)
+    }
+
+    private fun watchlistToolbar(): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(12))
+            addView(text("Watchlist", 22f, R.color.newsin_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(iconButton(if (watchlistEditMode) "Selesai" else "Edit", if (watchlistEditMode) "✓" else "✎").apply {
+                setOnClickListener {
+                    watchlistEditMode = !watchlistEditMode
+                    renderWatchlist()
+                }
+            })
+            addView(iconButton("Tambah", "+").apply {
+                setOnClickListener { renderWatchlistPicker() }
+            }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginStart = dp(8) })
+        }
+
+    private fun watchlistSummaryCard(assets: List<MarketAsset>): View = card().apply {
+        val gainers = assets.count { it.isPositive }
+        val losers = assets.size - gainers
+        addView(text("Watchlist Saya", 18f, R.color.newsin_text_primary, Typeface.BOLD))
+        addGap(4)
+        addView(text("${assets.size} aset dipantau • Naik $gainers • Turun $losers", 12f, R.color.newsin_text_muted))
+        val top = assets.maxByOrNull { kotlin.math.abs(it.changePercent) }
+        if (top != null) {
+            addGap(8)
+            addView(text("Pergerakan terbesar: ${top.symbol} ${formatPercent(top.changePercent)}", 13f, if (top.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
+        }
+    }
+
+    private fun emptyWatchlistCard(): View = card().apply {
+        addView(text("Belum ada aset di watchlist", 17f, R.color.newsin_text_primary, Typeface.BOLD))
+        addGap(6)
+        addView(text("Tekan tombol + atau buka detail market lalu tekan bintang untuk menambahkan aset.", 13f, R.color.newsin_text_secondary))
+    }
+
+    private fun watchlistAssetItem(asset: MarketAsset): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(12), dp(12), dp(12))
+            background = rounded(R.color.newsin_card, 8, R.color.newsin_hairline)
+            setOnClickListener { openMarketDetail(asset) }
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(text("${asset.symbol}  ${asset.name}", 16f, R.color.newsin_text_primary, Typeface.BOLD).apply { maxLines = 1 })
+                addGap(4)
+                addView(text("${asset.price} • ${asset.category} • ${asset.updatedAt}", 12f, R.color.newsin_text_muted).apply { maxLines = 1 })
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.END
+                addView(text(formatPercent(asset.changePercent), 16f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD).apply { gravity = Gravity.END })
+                if (watchlistEditMode) {
+                    addGap(8)
+                    addView(secondaryActionButton("Hapus") {
+                        watchlistSymbols.remove(asset.symbol)
+                        renderWatchlist()
+                    }, LinearLayout.LayoutParams(dp(72), dp(34)))
+                }
+            })
+        }
+
+    private fun renderWatchlistPicker() {
+        bottomNav.visibility = View.VISIBLE
+        val screen = screenScroll()
+        screen.addView(backBar("Tambah Watchlist") { renderWatchlist() })
+        screen.addView(text("Pilih aset yang ingin dipantau.", 13f, R.color.newsin_text_muted))
+        screen.addGap(12)
+        if (marketAssets.isEmpty()) {
+            screen.addView(loadingCard("Mengambil daftar aset..."))
+            loadMarkets { renderWatchlistPicker() }
+        } else {
+            marketAssets.forEach { asset ->
+                screen.addView(watchlistPickerItem(asset))
+                screen.addGap(8)
+            }
+        }
+        displayScroll(screen)
+    }
+
+    private fun watchlistPickerItem(asset: MarketAsset): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(12), dp(12), dp(12))
+            background = rounded(R.color.newsin_card, 8, R.color.newsin_hairline)
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(text("${asset.symbol}  ${asset.name}", 16f, R.color.newsin_text_primary, Typeface.BOLD))
+                addView(text("${asset.price} • ${formatPercent(asset.changePercent)}", 12f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative))
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(if (isInWatchlist(asset)) "✓" else "+", 22f, if (isInWatchlist(asset)) R.color.newsin_positive else R.color.newsin_accent, Typeface.BOLD).apply {
+                gravity = Gravity.CENTER
+            }, LinearLayout.LayoutParams(dp(42), dp(42)))
+            setOnClickListener {
+                toggleWatchlist(asset)
+                renderWatchlistPicker()
+            }
+        }
+
+    private fun watchlistAssets(): List<MarketAsset> =
+        watchlistSymbols.mapNotNull { symbol -> marketAssets.firstOrNull { it.symbol == symbol } }
+
+    private fun isInWatchlist(asset: MarketAsset): Boolean = watchlistSymbols.contains(asset.symbol)
+
+    private fun toggleWatchlist(asset: MarketAsset) {
+        if (!watchlistSymbols.add(asset.symbol)) watchlistSymbols.remove(asset.symbol)
     }
 
     private fun toolbarWithActions(title: String, first: String, second: String): LinearLayout =
