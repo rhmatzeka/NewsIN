@@ -484,6 +484,8 @@ class MainActivity : AppCompatActivity() {
         addView(text("${article.source} • ${article.timeAgo}", 12f, R.color.newsin_text_muted))
         addGap(10)
         addTagRow(article)
+        addGap(10)
+        addView(actionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40)))
         setOnClickListener { openNewsDetail(article) }
     }
 
@@ -502,6 +504,8 @@ class MainActivity : AppCompatActivity() {
             addView(text("${article.source} • ${article.timeAgo}", 12f, R.color.newsin_text_muted))
             addGap(6)
             addTagRow(article)
+            addGap(8)
+            addView(secondaryActionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(34)))
         }
         row.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         return row
@@ -535,7 +539,8 @@ class MainActivity : AppCompatActivity() {
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(actionButton("Bagikan") { shareArticle(article) }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(8) })
-            addView(actionButton("Buka Sumber") { openArticleSource(article) }, LinearLayout.LayoutParams(0, dp(44), 1f))
+            addView(actionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(8) })
+            addView(secondaryActionButton("Sumber") { openArticleSource(article) }, LinearLayout.LayoutParams(0, dp(44), 0.78f))
         }
         screen.addView(actions)
         screen.addGap(16)
@@ -725,6 +730,13 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener(onClick)
         }
 
+    private fun secondaryActionButton(label: String, onClick: (View) -> Unit): TextView =
+        text(label, 13f, R.color.newsin_text_primary, Typeface.BOLD).apply {
+            gravity = Gravity.CENTER
+            background = rounded(R.color.newsin_card_soft, 8, R.color.newsin_hairline)
+            setOnClickListener(onClick)
+        }
+
     private fun shareArticle(article: NewsArticle) {
         startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
@@ -748,6 +760,14 @@ class MainActivity : AppCompatActivity() {
         screen.addView(sectionHeader("Dampak Berita", "AI brief"))
         screen.addGap(10)
         screen.addView(newsImpactCard())
+        screen.addGap(16)
+        screen.addView(sectionHeader("Berita untuk Ditanyakan", "${newsArticles.size} headline"))
+        screen.addGap(10)
+        screen.addView(aiNewsRail())
+        screen.addGap(16)
+        screen.addView(sectionHeader("Aset untuk Ditanyakan", "${marketAssets.size} aset"))
+        screen.addGap(10)
+        screen.addView(aiAssetRail())
         screen.addGap(16)
         screen.addView(sectionHeader("Tanya AI"))
         screen.addGap(10)
@@ -802,6 +822,77 @@ class MainActivity : AppCompatActivity() {
             "AI akan membantu menjelaskan apakah sebuah berita kemungkinan berdampak ke aset, sentimen pasar, atau hanya headline umum."
         }
         addView(text(impact, 14f, R.color.newsin_text_secondary))
+        if (latest != null) {
+            addGap(12)
+            addView(actionButton("Tanyakan Berita Ini") { askAiAboutNews(latest) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
+        }
+    }
+
+    private fun aiNewsRail(): HorizontalScrollView {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, dp(4))
+        }
+        val articles = newsArticles.take(8)
+        if (articles.isEmpty()) {
+            row.addView(infoCard("Berita sedang dimuat."))
+        } else {
+            articles.forEach { article ->
+                row.addView(aiNewsContextCard(article), LinearLayout.LayoutParams(dp(238), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    marginEnd = dp(10)
+                })
+            }
+        }
+        return HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(row)
+        }
+    }
+
+    private fun aiNewsContextCard(article: NewsArticle): View = card().apply {
+        setPadding(dp(12), dp(12), dp(12), dp(12))
+        addView(articleImage(article, 94))
+        addGap(10)
+        addView(text(article.title, 14f, R.color.newsin_text_primary, Typeface.BOLD).apply { maxLines = 3 })
+        addGap(4)
+        addView(text("${article.source} • ${article.category}", 11f, R.color.newsin_text_muted))
+        addGap(10)
+        addView(actionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)))
+        setOnClickListener { askAiAboutNews(article) }
+    }
+
+    private fun aiAssetRail(): HorizontalScrollView {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, dp(4))
+        }
+        val assets = marketAssets.sortedByDescending { kotlin.math.abs(it.changePercent) }.take(10)
+        if (assets.isEmpty()) {
+            row.addView(infoCard("Aset sedang dimuat."))
+        } else {
+            assets.forEach { asset ->
+                row.addView(aiAssetContextCard(asset), LinearLayout.LayoutParams(dp(176), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    marginEnd = dp(10)
+                })
+            }
+        }
+        return HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(row)
+        }
+    }
+
+    private fun aiAssetContextCard(asset: MarketAsset): View = card().apply {
+        setPadding(dp(12), dp(12), dp(12), dp(12))
+        addView(text(asset.symbol, 22f, R.color.newsin_text_primary, Typeface.BOLD))
+        addGap(4)
+        addView(text(asset.name, 12f, R.color.newsin_text_muted).apply { maxLines = 1 })
+        addGap(8)
+        addView(text(asset.price, 15f, R.color.newsin_text_primary, Typeface.BOLD))
+        addView(text(formatPercent(asset.changePercent), 18f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
+        addGap(10)
+        addView(actionButton("Tanyakan") { askAiAboutAsset(asset) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)))
+        setOnClickListener { askAiAboutAsset(asset) }
     }
 
     private fun aiSetupCard(): View = card().apply {
@@ -887,6 +978,9 @@ class MainActivity : AppCompatActivity() {
         addView(text("${asset.price} • update ${asset.updatedAt}", 12f, R.color.newsin_text_muted))
         addGap(8)
         addView(text("Data harga, perubahan 24 jam, dan sparkline berasal dari CoinGecko API.", 13f, R.color.newsin_text_secondary))
+        addGap(10)
+        addView(secondaryActionButton("Tanyakan AI tentang ${asset.symbol}") { askAiAboutAsset(asset) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)))
+        setOnClickListener { askAiAboutAsset(asset) }
     }
 
     private fun renderWatchlist() {
@@ -1270,6 +1364,34 @@ class MainActivity : AppCompatActivity() {
                 renderActiveAiSurface()
             }
         }
+    }
+
+    private fun askAiAboutNews(article: NewsArticle) {
+        activeAiSurface = AiSurface.PAGE
+        bottomNav.selectedItemId = R.id.nav_ideas
+        val relatedAssets = marketAssets.sortedByDescending { kotlin.math.abs(it.changePercent) }
+            .take(5)
+            .joinToString(", ") { "${it.symbol} ${formatPercent(it.changePercent)}" }
+        val prompt = buildString {
+            append("Jelaskan dampak berita ini ke market dan aset yang perlu diperhatikan: \"${article.title}\". ")
+            append("Sumber ${article.source}, kategori ${article.category}. ")
+            if (article.summary.isNotBlank()) append("Ringkasan: ${article.summary}. ")
+            if (relatedAssets.isNotBlank()) append("Aset yang sedang bergerak besar: $relatedAssets. ")
+            append("Jawab simpel: dampaknya apa, aset mana yang mungkin sensitif, dan risiko salah tafsirnya.")
+        }
+        sendRealAiQuestion(prompt)
+    }
+
+    private fun askAiAboutAsset(asset: MarketAsset) {
+        activeAiSurface = AiSurface.PAGE
+        bottomNav.selectedItemId = R.id.nav_ideas
+        val latestNews = newsArticles.take(4).joinToString("; ") { it.title }
+        val prompt = buildString {
+            append("Analisis ${asset.symbol} (${asset.name}) berdasarkan data ini: harga ${asset.price}, perubahan ${formatPercent(asset.changePercent)}, kategori ${asset.category}, sumber ${asset.source}. ")
+            if (latestNews.isNotBlank()) append("Hubungkan dengan headline terbaru: $latestNews. ")
+            append("Jelaskan apakah pergerakannya terlihat karena momentum pasar, sentimen berita, atau perlu hati-hati karena volatilitas.")
+        }
+        sendRealAiQuestion(prompt)
     }
 
     private fun renderActiveAiSurface() {
