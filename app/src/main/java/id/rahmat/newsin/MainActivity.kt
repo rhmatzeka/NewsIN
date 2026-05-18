@@ -787,8 +787,6 @@ class MainActivity : AppCompatActivity() {
         screen.addGap(16)
         screen.addView(sectionHeader("Tanya AI"))
         screen.addGap(10)
-        screen.addView(aiSetupCard())
-        screen.addGap(10)
         screen.addView(aiSuggestions())
         screen.addGap(10)
         chatMessages.takeLast(6).forEach {
@@ -909,18 +907,6 @@ class MainActivity : AppCompatActivity() {
         addGap(10)
         addView(actionButton("Tanyakan") { askAiAboutAsset(asset) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)))
         setOnClickListener { askAiAboutAsset(asset) }
-    }
-
-    private fun aiSetupCard(): View = card().apply {
-        val configured = BuildConfig.AI_API_KEY.isNotBlank()
-        addView(text(if (configured) "AI aktif" else "AI belum diisi", 16f, if (configured) R.color.newsin_positive else R.color.newsin_accent, Typeface.BOLD))
-        addGap(6)
-        addView(text(
-            if (configured) "Model: ${BuildConfig.AI_MODEL}. AI memakai data market dan berita yang sudah dimuat di aplikasi."
-            else "Isi AI_API_KEY di file .env, lalu build ulang. Selama key kosong, chat memakai jawaban lokal berbasis data market/berita.",
-            13f,
-            R.color.newsin_text_secondary
-        ))
     }
 
     private fun aiSuggestions(): HorizontalScrollView {
