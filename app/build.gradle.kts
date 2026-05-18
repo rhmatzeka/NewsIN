@@ -37,8 +37,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "AI_API_KEY", (dotEnv["AI_API_KEY"] ?: "").asBuildConfigString())
-        buildConfigField("String", "AI_BASE_URL", (dotEnv["AI_BASE_URL"] ?: "https://api.openai.com/v1/chat/completions").asBuildConfigString())
-        buildConfigField("String", "AI_MODEL", (dotEnv["AI_MODEL"] ?: "gpt-4o-mini").asBuildConfigString())
+        buildConfigField("String", "AI_BASE_URL", (dotEnv["AI_BASE_URL"] ?: "https://api.groq.com/openai/v1/chat/completions").asBuildConfigString())
+        buildConfigField("String", "AI_MODEL", (dotEnv["AI_MODEL"] ?: "llama-3.1-8b-instant").asBuildConfigString())
     }
 
     buildFeatures {

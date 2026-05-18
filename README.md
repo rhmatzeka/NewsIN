@@ -57,12 +57,12 @@ Buka project di Android Studio, lalu jalankan:
 
 ## AI Chat
 
-Salin `.env.example` menjadi `.env`, lalu isi:
+Salin `.env.example` menjadi `.env`, lalu isi Groq API key dari `https://console.groq.com/keys`:
 
 ```env
-AI_API_KEY=isi_api_key_ai
-AI_BASE_URL=https://api.openai.com/v1/chat/completions
-AI_MODEL=gpt-4o-mini
+AI_API_KEY=isi_api_key_groq
+AI_BASE_URL=https://api.groq.com/openai/v1/chat/completions
+AI_MODEL=llama-3.1-8b-instant
 ```
 
 Build ulang aplikasi setelah mengubah `.env`. Jika `AI_API_KEY` kosong, halaman AI tetap berjalan dengan analisis lokal berbasis data market dan berita yang berhasil dimuat.
