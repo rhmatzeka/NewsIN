@@ -24,8 +24,7 @@ class PublicApiClient {
     fun fetchCoinGeckoMarkets(): List<MarketAsset> {
         val endpoint = "https://api.coingecko.com/api/v3/coins/markets" +
             "?vs_currency=usd" +
-            "&ids=bitcoin,ethereum,binancecoin,ripple,solana,cardano,dogecoin,tron,chainlink,polkadot,litecoin,bitcoin-cash,avalanche-2,stellar,sui,uniswap,near,aptos,internet-computer,ethereum-classic" +
-            "&order=market_cap_desc&per_page=20&page=1&sparkline=true&price_change_percentage=24h"
+            "&order=market_cap_desc&per_page=100&page=1&sparkline=true&price_change_percentage=24h"
         val json = request(endpoint)
         val array = JSONArray(json)
         return List(array.length()) { index ->
@@ -43,6 +42,7 @@ class PublicApiClient {
                 changePercent = change,
                 updatedAt = formatUpdatedAt(item.optString("last_updated")),
                 sparkline = parseSparkline(item.optJSONObject("sparkline_in_7d")?.optJSONArray("price")),
+                category = "Kripto",
                 source = "CoinGecko",
                 unit = "${item.optString("symbol").uppercase(Locale.US)}/USD",
                 bid = formatUsd(price * 0.9995),
@@ -64,13 +64,18 @@ class PublicApiClient {
             JSONObject(request("https://$previousDate.currency-api.pages.dev/v1/currencies/usd.json")).getJSONObject("usd")
         }.getOrNull()
         val specs = listOf(
-            CurrencySpec("USD/IDR", "USD/IDR", "idr", false),
-            CurrencySpec("EUR/USD", "Euro", "eur", true),
-            CurrencySpec("GBP/USD", "British Pound", "gbp", true),
-            CurrencySpec("USD/JPY", "USD/JPY", "jpy", false),
-            CurrencySpec("AUD/USD", "Australian Dollar", "aud", true),
-            CurrencySpec("Emas", "XAU/USD", "xau", true),
-            CurrencySpec("Perak", "XAG/USD", "xag", true)
+            CurrencySpec("USD/IDR", "USD/IDR", "idr", false, "Mata Uang"),
+            CurrencySpec("EUR/USD", "Euro", "eur", true, "Mata Uang"),
+            CurrencySpec("GBP/USD", "British Pound", "gbp", true, "Mata Uang"),
+            CurrencySpec("USD/JPY", "USD/JPY", "jpy", false, "Mata Uang"),
+            CurrencySpec("AUD/USD", "Australian Dollar", "aud", true, "Mata Uang"),
+            CurrencySpec("USD/SGD", "USD/SGD", "sgd", false, "Mata Uang"),
+            CurrencySpec("USD/CNY", "USD/CNY", "cny", false, "Mata Uang"),
+            CurrencySpec("USD/MYR", "USD/MYR", "myr", false, "Mata Uang"),
+            CurrencySpec("USD/THB", "USD/THB", "thb", false, "Mata Uang"),
+            CurrencySpec("USD/KRW", "USD/KRW", "krw", false, "Mata Uang"),
+            CurrencySpec("Emas", "XAU/USD", "xau", true, "Komoditas"),
+            CurrencySpec("Perak", "XAG/USD", "xag", true, "Komoditas")
         )
         return specs.mapNotNull { spec ->
             val currentRate = currentRates.optDouble(spec.code, Double.NaN)
@@ -85,15 +90,16 @@ class PublicApiClient {
             val change = currentPrice - previousPrice
             val changePercent = if (previousPrice == 0.0) 0.0 else (change / previousPrice) * 100.0
             val history = fetchCurrencyHistory(spec.code, spec.invert, currentPrice)
-            val formatter = if (spec.code == "idr") ::formatIdrLike else ::formatUsd
+            val formatter = formatterFor(spec)
             MarketAsset(
                 name = spec.name,
                 symbol = spec.symbol,
                 price = formatter(currentPrice),
-                changeValue = formatSignedNumber(change, spec.code == "idr"),
+                changeValue = formatSignedNumber(change, spec),
                 changePercent = changePercent,
                 updatedAt = "$date",
                 sparkline = history,
+                category = spec.category,
                 source = "Currency API",
                 unit = spec.symbol,
                 bid = formatter(currentPrice * 0.9996),
@@ -192,14 +198,28 @@ class PublicApiClient {
         return formatter.format(value)
     }
 
+    private fun formatPlain(value: Double): String {
+        val formatter = NumberFormat.getNumberInstance(idLocale).apply {
+            maximumFractionDigits = if (abs(value) < 10) 4 else 2
+            minimumFractionDigits = if (abs(value) < 10) 2 else 0
+        }
+        return formatter.format(value)
+    }
+
     private fun formatSignedUsd(value: Double): String {
         val sign = if (value >= 0) "+" else "-"
         return sign + formatUsd(abs(value))
     }
 
-    private fun formatSignedNumber(value: Double, idrStyle: Boolean): String {
+    private fun formatSignedNumber(value: Double, spec: CurrencySpec): String {
         val sign = if (value >= 0) "+" else "-"
-        return sign + if (idrStyle) formatIdrLike(abs(value)) else formatUsd(abs(value))
+        return sign + formatterFor(spec)(abs(value))
+    }
+
+    private fun formatterFor(spec: CurrencySpec): (Double) -> String = when {
+        spec.code == "idr" -> ::formatIdrLike
+        spec.invert -> ::formatUsd
+        else -> ::formatPlain
     }
 
     private fun formatUpdatedAt(iso: String): String {
@@ -263,6 +283,7 @@ class PublicApiClient {
         val name: String,
         val symbol: String,
         val code: String,
-        val invert: Boolean
+        val invert: Boolean,
+        val category: String
     )
 }

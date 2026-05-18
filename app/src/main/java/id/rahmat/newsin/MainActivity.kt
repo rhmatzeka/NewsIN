@@ -10,6 +10,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.View
@@ -46,6 +48,7 @@ import id.rahmat.newsin.presentation.components.screenScroll
 import id.rahmat.newsin.presentation.components.sectionHeader
 import id.rahmat.newsin.presentation.components.text
 import id.rahmat.newsin.presentation.components.topBar
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -61,6 +64,8 @@ class MainActivity : AppCompatActivity() {
     private var newsLoading = false
     private var marketError: String? = null
     private var newsError: String? = null
+    private var selectedMarketCategory = "Populer 🔥"
+    private val marketCategories = listOf("Populer 🔥", "Indeks", "Futures Indeks", "Saham", "Kripto", "Komoditas", "Mata Uang")
     private lateinit var content: FrameLayout
     private lateinit var bottomNav: BottomNavigationView
 
@@ -172,7 +177,7 @@ class MainActivity : AppCompatActivity() {
         bottomNav.visibility = View.VISIBLE
         val screen = screenScroll()
         screen.addView(topBar("NewsIN", showLogo = true) { renderSearch() })
-        screen.addView(horizontalChips(listOf("Populer 🔥", "Indeks", "Futures Indeks", "Saham", "Kripto", "Komoditas", "Mata Uang")))
+        screen.addView(marketCategoryChips())
         when {
             marketLoading -> {
                 screen.addView(loadingCard("Mengambil harga real dari CoinGecko dan Currency API..."))
@@ -188,17 +193,77 @@ class MainActivity : AppCompatActivity() {
                 screen.addGap(10)
             }
             else -> {
-                screen.addView(sectionHeader("Populer", "${marketAssets.size} instrumen"))
+                val visibleAssets = filteredMarketAssets()
+                screen.addView(marketOverview(visibleAssets))
+                screen.addGap(10)
+                screen.addView(sectionHeader(selectedMarketTitle(), "${visibleAssets.size} instrumen"))
                 screen.addGap(6)
-                marketAssets.forEachIndexed { index, asset ->
-                    screen.addView(marketItem(asset))
-                    if (index < marketAssets.lastIndex) screen.addView(divider())
+                if (visibleAssets.isEmpty()) {
+                    screen.addView(emptyMarketCategoryCard())
+                } else {
+                    visibleAssets.forEachIndexed { index, asset ->
+                        screen.addView(marketItem(asset))
+                        if (index < visibleAssets.lastIndex) screen.addView(divider())
+                    }
                 }
             }
         }
         screen.addGap(6)
-        screen.addView(infoCard("Sumber market: CoinGecko API + Currency API dari public-apis. Ketuk instrumen untuk membuka detail."))
+        screen.addView(infoCard("Sumber market: CoinGecko API dan Currency API dari daftar public-apis. Ketuk instrumen untuk membuka detail."))
         displayScroll(screen)
+    }
+
+    private fun marketCategoryChips(): HorizontalScrollView {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(4), 0, dp(12))
+        }
+        marketCategories.forEach { category ->
+            row.addView(chip(category, category == selectedMarketCategory).apply {
+                setOnClickListener {
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    selectedMarketCategory = category
+                    renderMarket()
+                }
+            })
+        }
+        return HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(row)
+        }
+    }
+
+    private fun filteredMarketAssets(): List<MarketAsset> {
+        val assets = when (selectedMarketCategory) {
+            "Kripto" -> marketAssets.filter { it.category == "Kripto" }
+            "Komoditas" -> marketAssets.filter { it.category == "Komoditas" }
+            "Mata Uang" -> marketAssets.filter { it.category == "Mata Uang" }
+            "Saham", "Indeks", "Futures Indeks" -> marketAssets.filter { it.category == selectedMarketCategory }
+            else -> marketAssets.sortedByDescending { kotlin.math.abs(it.changePercent) }
+        }
+        return assets
+    }
+
+    private fun selectedMarketTitle(): String =
+        if (selectedMarketCategory == "Populer 🔥") "Populer" else selectedMarketCategory
+
+    private fun marketOverview(assets: List<MarketAsset>): View = card().apply {
+        val gainers = assets.count { it.isPositive }
+        val losers = assets.size - gainers
+        addView(text("${assets.size} aset aktif", 20f, R.color.newsin_text_primary, Typeface.BOLD))
+        addGap(4)
+        addView(text("Naik $gainers • Turun $losers • Filter: ${selectedMarketTitle()}", 13f, R.color.newsin_text_muted))
+        val leader = assets.maxByOrNull { it.changePercent }
+        if (leader != null) {
+            addGap(8)
+            addView(text("Top mover: ${leader.symbol} ${formatPercent(leader.changePercent)}", 14f, if (leader.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
+        }
+    }
+
+    private fun emptyMarketCategoryCard(): View = card().apply {
+        addView(text("Belum ada data ${selectedMarketTitle()}", 16f, R.color.newsin_text_primary, Typeface.BOLD))
+        addGap(6)
+        addView(text("Di public-apis, sumber saham/indeks real-time tanpa API key sangat terbatas. Data yang aktif sekarang difokuskan ke crypto, mata uang, emas, dan perak.", 13f, R.color.newsin_text_secondary))
     }
 
     private fun marketItem(asset: MarketAsset): View {
@@ -670,7 +735,6 @@ class MainActivity : AppCompatActivity() {
         inputRow.addView(actionButton("Kirim") {
             val query = input.text.toString().trim()
             if (query.isNotBlank()) {
-                chatMessages.add(ChatMessage(UUID.randomUUID().toString(), query, "Baru saja", true))
                 sendRealAiQuestion(query)
             }
         }, LinearLayout.LayoutParams(dp(74), dp(44)))
@@ -723,13 +787,75 @@ class MainActivity : AppCompatActivity() {
         val input = editText("Cari berita atau aset")
         screen.addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
         screen.addGap(16)
-        screen.addView(sectionHeader("Hasil Populer"))
-        screen.addGap(10)
-        if (marketAssets.isEmpty()) loadMarkets { renderSearch() }
-        if (newsArticles.isEmpty()) loadNews { renderSearch() }
-        marketAssets.take(3).forEach { screen.addView(marketItem(it)); screen.addGap(10) }
-        newsArticles.take(2).forEach { screen.addView(newsSmall(it)); screen.addGap(10) }
+        val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        screen.addView(results)
+        fun refreshResults(query: String) {
+            results.removeAllViews()
+            val cleanQuery = query.trim()
+            val filteredAssets = searchMarketAssets(cleanQuery)
+            val filteredNews = searchNews(cleanQuery)
+            results.addView(sectionHeader(if (cleanQuery.isBlank()) "Hasil Populer" else "Aset", "${filteredAssets.size} hasil"))
+            results.addGap(10)
+            if (marketLoading && marketAssets.isEmpty()) {
+                results.addView(loadingCard("Mengambil data market..."))
+                results.addGap(10)
+            } else if (filteredAssets.isEmpty()) {
+                results.addView(infoCard("Tidak ada aset yang cocok. Coba cari BTC, USD, emas, solana, atau nama aset lain."))
+                results.addGap(10)
+            } else {
+                filteredAssets.forEach { asset ->
+                    results.addView(marketItem(asset))
+                    results.addGap(8)
+                }
+            }
+            results.addGap(8)
+            results.addView(sectionHeader("Berita", "${filteredNews.size} hasil"))
+            results.addGap(10)
+            if (newsLoading && newsArticles.isEmpty()) {
+                results.addView(loadingCard("Mengambil berita..."))
+            } else if (filteredNews.isEmpty()) {
+                results.addView(infoCard("Belum ada berita yang cocok dengan pencarian ini."))
+            } else {
+                filteredNews.forEach { article ->
+                    results.addView(newsSmall(article))
+                    results.addGap(10)
+                }
+            }
+        }
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                refreshResults(s?.toString().orEmpty())
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+        if (marketAssets.isEmpty()) loadMarkets { refreshResults(input.text.toString()) }
+        if (newsArticles.isEmpty()) loadNews { refreshResults(input.text.toString()) }
+        refreshResults("")
         displayScroll(screen)
+        input.requestFocus()
+    }
+
+    private fun searchMarketAssets(query: String): List<MarketAsset> {
+        val source = if (selectedMarketCategory == "Populer 🔥") marketAssets else filteredMarketAssets()
+        if (query.isBlank()) return source.take(20)
+        val needle = query.lowercase(Locale.ROOT)
+        return marketAssets.filter {
+            it.name.lowercase(Locale.ROOT).contains(needle) ||
+                it.symbol.lowercase(Locale.ROOT).contains(needle) ||
+                it.unit.lowercase(Locale.ROOT).contains(needle) ||
+                it.category.lowercase(Locale.ROOT).contains(needle)
+        }.take(40)
+    }
+
+    private fun searchNews(query: String): List<NewsArticle> {
+        if (query.isBlank()) return newsArticles.take(5)
+        val needle = query.lowercase(Locale.ROOT)
+        return newsArticles.filter {
+            it.title.lowercase(Locale.ROOT).contains(needle) ||
+                it.summary.lowercase(Locale.ROOT).contains(needle) ||
+                it.source.lowercase(Locale.ROOT).contains(needle)
+        }.take(12)
     }
 
     private fun backBar(title: String, onBack: () -> Unit): LinearLayout =

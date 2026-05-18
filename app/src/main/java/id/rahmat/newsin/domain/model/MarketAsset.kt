@@ -8,6 +8,7 @@ data class MarketAsset(
     val changePercent: Double,
     val updatedAt: String,
     val sparkline: List<Float>,
+    val category: String = "Kripto",
     val source: String = "",
     val unit: String = "",
     val bid: String = price,
