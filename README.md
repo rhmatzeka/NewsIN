@@ -55,6 +55,18 @@ Buka project di Android Studio, lalu jalankan:
 ./gradlew :app:assembleDebug
 ```
 
+## AI Chat
+
+Salin `.env.example` menjadi `.env`, lalu isi:
+
+```env
+AI_API_KEY=isi_api_key_ai
+AI_BASE_URL=https://api.openai.com/v1/chat/completions
+AI_MODEL=gpt-4o-mini
+```
+
+Build ulang aplikasi setelah mengubah `.env`. Jika `AI_API_KEY` kosong, halaman AI tetap berjalan dengan analisis lokal berbasis data market dan berita yang berhasil dimuat.
+
 APK debug akan dibuat di:
 
 ```text

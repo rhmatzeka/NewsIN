@@ -57,6 +57,8 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
     private val repository = RealNewsInRepository(PublicApiClient())
@@ -68,6 +70,7 @@ class MainActivity : AppCompatActivity() {
     private val articleContentErrors = ConcurrentHashMap<String, String>()
     private val articleContentLoading = ConcurrentHashMap<String, Boolean>()
     private val chatMessages = mutableListOf<ChatMessage>()
+    private var activeAiSurface = AiSurface.PAGE
     private var marketAssets = emptyList<MarketAsset>()
     private var newsArticles = emptyList<NewsArticle>()
     private var marketLoading = false
@@ -730,34 +733,126 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderIdeas() {
+        activeAiSurface = AiSurface.PAGE
         bottomNav.visibility = View.VISIBLE
         val pick = repository.aiPick()
         val screen = screenScroll()
-        screen.addView(topBar("Ide") { renderSearch() })
-        screen.addView(sectionHeader("Saham Pilihan AI", pick.market))
-        screen.addGap(10)
-        screen.addView(card().apply {
-            val strongest = marketAssets.maxByOrNull { it.changePercent }
-            addView(text(strongest?.let { "${it.symbol} ${formatPercent(it.changePercent)}" } ?: "Muat data market", 34f, R.color.newsin_positive, Typeface.BOLD))
-            addView(text("Top mover 24 jam • CoinGecko real-time", 13f, R.color.newsin_text_muted))
-            addGap(12)
-            addView(performanceBar(0.86f, "Aset terkuat", strongest?.symbol ?: "-", R.color.newsin_accent))
-            addGap(8)
-            addView(performanceBar(0.34f, "Benchmark", pick.benchmarkReturn, R.color.newsin_text_muted))
-            addGap(12)
-            addView(text(pick.highlight, 14f, R.color.newsin_text_secondary))
-        })
-        screen.addGap(16)
-        screen.addView(sectionHeader("Daftar Aset Real"))
-        screen.addGap(10)
+        screen.addView(topBar("AI") { renderSearch() })
+        if (chatMessages.isEmpty()) chatMessages.addAll(repository.initialChat())
         if (marketAssets.isEmpty()) loadMarkets { renderIdeas() }
-        marketAssets.forEach {
+        if (newsArticles.isEmpty()) loadNews { renderIdeas() }
+        screen.addView(sectionHeader("Aset Pilihan AI", pick.market))
+        screen.addGap(10)
+        screen.addView(aiPickCard())
+        screen.addGap(16)
+        screen.addView(sectionHeader("Dampak Berita", "AI brief"))
+        screen.addGap(10)
+        screen.addView(newsImpactCard())
+        screen.addGap(16)
+        screen.addView(sectionHeader("Tanya AI"))
+        screen.addGap(10)
+        screen.addView(aiSetupCard())
+        screen.addGap(10)
+        screen.addView(aiSuggestions())
+        screen.addGap(10)
+        chatMessages.takeLast(6).forEach {
+            screen.addView(chatBubble(it))
+            screen.addGap(10)
+        }
+        screen.addView(aiInputRow())
+        screen.addGap(16)
+        screen.addView(sectionHeader("Daftar Aset Real", "${marketAssets.size} aset"))
+        screen.addGap(10)
+        marketAssets.take(12).forEach {
             screen.addView(assetIdeaItem(it))
             screen.addGap(10)
         }
-        screen.addGap(4)
-        screen.addView(actionButton("Cek Semua Data Pro") { it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
         displayScroll(screen)
+    }
+
+    private fun aiPickCard(): View = card().apply {
+        val strongest = marketAssets.maxByOrNull { it.changePercent }
+        val weakest = marketAssets.minByOrNull { it.changePercent }
+        addView(text(strongest?.let { "${it.symbol} ${formatPercent(it.changePercent)}" } ?: "Muat data market", 34f, if (strongest?.isPositive != false) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
+        addView(text("Pilihan berbasis momentum 24 jam dan data market real", 13f, R.color.newsin_text_muted))
+        addGap(12)
+        addView(performanceBar(0.86f, "Aset terkuat", strongest?.symbol ?: "-", R.color.newsin_accent))
+        addGap(8)
+        addView(performanceBar(0.32f, "Aset terlemah", weakest?.symbol ?: "-", R.color.newsin_text_muted))
+        addGap(12)
+        addView(text(aiPickExplanation(strongest, weakest), 14f, R.color.newsin_text_secondary))
+    }
+
+    private fun aiPickExplanation(strongest: MarketAsset?, weakest: MarketAsset?): String = when {
+        strongest == null -> "Data market sedang dimuat. AI akan memakai harga crypto, mata uang, emas, perak, dan headline berita yang tersedia."
+        weakest == null -> "${strongest.symbol} sedang menjadi mover terkuat. Tetap cek berita terkait dan risiko volatilitas sebelum mengambil keputusan."
+        else -> "${strongest.symbol} terlihat paling kuat, sementara ${weakest.symbol} paling lemah. Ini bukan saran beli/jual, tapi sinyal awal untuk ditanyakan ke AI bersama konteks berita terbaru."
+    }
+
+    private fun newsImpactCard(): View = card().apply {
+        val latest = newsArticles.firstOrNull()
+        val strongest = marketAssets.maxByOrNull { kotlin.math.abs(it.changePercent) }
+        addView(text(latest?.title ?: "Memuat berita terbaru...", 17f, R.color.newsin_text_primary, Typeface.BOLD))
+        addGap(6)
+        addView(text(latest?.let { "${it.source} • ${it.timeAgo}" } ?: "Spaceflight News API", 12f, R.color.newsin_text_muted))
+        addGap(10)
+        val impact = if (latest != null && strongest != null) {
+            "Pertanyaan yang bagus untuk AI: berita ini memengaruhi sentimen risiko atau tidak, dan apakah ada kaitannya dengan pergerakan ${strongest.symbol} ${formatPercent(strongest.changePercent)}?"
+        } else {
+            "AI akan membantu menjelaskan apakah sebuah berita kemungkinan berdampak ke aset, sentimen pasar, atau hanya headline umum."
+        }
+        addView(text(impact, 14f, R.color.newsin_text_secondary))
+    }
+
+    private fun aiSetupCard(): View = card().apply {
+        val configured = BuildConfig.AI_API_KEY.isNotBlank()
+        addView(text(if (configured) "AI aktif" else "AI belum diisi", 16f, if (configured) R.color.newsin_positive else R.color.newsin_accent, Typeface.BOLD))
+        addGap(6)
+        addView(text(
+            if (configured) "Model: ${BuildConfig.AI_MODEL}. AI memakai data market dan berita yang sudah dimuat di aplikasi."
+            else "Isi AI_API_KEY di file .env, lalu build ulang. Selama key kosong, chat memakai jawaban lokal berbasis data market/berita.",
+            13f,
+            R.color.newsin_text_secondary
+        ))
+    }
+
+    private fun aiSuggestions(): HorizontalScrollView {
+        val suggestions = listOf(
+            "Berita terbaru ngaruh ke aset apa?",
+            "Aset mana yang paling kuat?",
+            "Jelaskan risiko HYPE",
+            "Ringkas market hari ini"
+        )
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(4), 0, dp(8))
+        }
+        suggestions.forEach { suggestion ->
+            row.addView(chip(suggestion, false).apply {
+                setOnClickListener {
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    sendRealAiQuestion(suggestion)
+                }
+            })
+        }
+        return HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(row)
+        }
+    }
+
+    private fun aiInputRow(): View {
+        val inputRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val input = editText("Tanya dampak berita atau aset...")
+        inputRow.addView(input, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginEnd = dp(8) })
+        inputRow.addView(actionButton("Kirim") {
+            val query = input.text.toString().trim()
+            if (query.isNotBlank()) sendRealAiQuestion(query)
+        }, LinearLayout.LayoutParams(dp(82), dp(44)))
+        return inputRow
     }
 
     private fun performanceBar(percent: Float, label: String, value: String, colorRes: Int): View {
@@ -926,6 +1021,7 @@ class MainActivity : AppCompatActivity() {
         }
 
     private fun renderAiChat() {
+        activeAiSurface = AiSurface.FULLSCREEN
         bottomNav.visibility = View.GONE
         if (chatMessages.isEmpty()) chatMessages.addAll(repository.initialChat())
         val root = LinearLayout(this).apply {
@@ -1163,21 +1259,123 @@ class MainActivity : AppCompatActivity() {
     private fun sendRealAiQuestion(query: String) {
         chatMessages.add(ChatMessage(UUID.randomUUID().toString(), query, "Baru saja", true))
         chatMessages.add(ChatMessage(UUID.randomUUID().toString(), "Mengambil data real terbaru...", "Baru saja", false))
-        renderAiChat()
+        renderActiveAiSurface()
         executor.execute {
-            val answer = runCatching { repository.answerFor(query) }
+            val answer = runCatching { answerWithConfiguredAi(query) }
             runOnUiThread {
                 chatMessages.removeLastOrNull()
                 chatMessages.add(answer.getOrElse {
                     ChatMessage(UUID.randomUUID().toString(), "Gagal mengambil data real: ${it.message}", "Baru saja", false)
                 })
-                renderAiChat()
+                renderActiveAiSurface()
             }
+        }
+    }
+
+    private fun renderActiveAiSurface() {
+        if (activeAiSurface == AiSurface.FULLSCREEN) renderAiChat() else renderIdeas()
+    }
+
+    private fun answerWithConfiguredAi(query: String): ChatMessage {
+        if (BuildConfig.AI_API_KEY.isBlank()) return localAiAnswer(query)
+        val response = requestAiCompletion(query)
+        return ChatMessage(
+            id = UUID.randomUUID().toString(),
+            text = response,
+            timestamp = "Baru saja",
+            fromUser = false,
+            recommendations = marketAssets.sortedByDescending { kotlin.math.abs(it.changePercent) }.take(3),
+            relatedNews = newsArticles.take(2)
+        )
+    }
+
+    private fun localAiAnswer(query: String): ChatMessage {
+        val strongest = marketAssets.maxByOrNull { it.changePercent }
+        val weakest = marketAssets.minByOrNull { it.changePercent }
+        val latest = newsArticles.firstOrNull()
+        val text = buildString {
+            append("AI key belum diisi, jadi ini analisis lokal dari data aplikasi. ")
+            if (strongest != null && weakest != null) {
+                append("${strongest.symbol} paling kuat (${formatPercent(strongest.changePercent)}), ")
+                append("${weakest.symbol} paling lemah (${formatPercent(weakest.changePercent)}). ")
+            }
+            if (latest != null) {
+                append("Headline terbaru: \"${latest.title}\". ")
+                append("Berita seperti ini perlu dicek apakah berdampak ke sentimen risiko, sektor terkait, atau hanya informasi umum. ")
+            }
+            append("Pertanyaan kamu: \"$query\". Isi .env untuk jawaban AI yang lebih dalam.")
+        }
+        return ChatMessage(
+            id = UUID.randomUUID().toString(),
+            text = text,
+            timestamp = "Baru saja",
+            fromUser = false,
+            recommendations = marketAssets.sortedByDescending { kotlin.math.abs(it.changePercent) }.take(3),
+            relatedNews = newsArticles.take(2)
+        )
+    }
+
+    private fun requestAiCompletion(query: String): String {
+        val payload = JSONObject().apply {
+            put("model", BuildConfig.AI_MODEL)
+            put("messages", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", "Kamu adalah analis market NewsIN. Jawab dalam Bahasa Indonesia yang mudah dipahami. Jelaskan dampak berita ke aset, risiko, dan konteks, tapi jangan memberi saran investasi personal.")
+                })
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", buildAiContext(query))
+                })
+            })
+            put("temperature", 0.4)
+        }
+        val connection = (URL(BuildConfig.AI_BASE_URL).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 20_000
+            readTimeout = 30_000
+            doOutput = true
+            setRequestProperty("Authorization", "Bearer ${BuildConfig.AI_API_KEY}")
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Accept", "application/json")
+        }
+        return try {
+            connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+            val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
+            val body = stream.bufferedReader().use { it.readText() }
+            if (connection.responseCode !in 200..299) error("AI HTTP ${connection.responseCode}: $body")
+            JSONObject(body)
+                .getJSONArray("choices")
+                .getJSONObject(0)
+                .getJSONObject("message")
+                .getString("content")
+                .trim()
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun buildAiContext(query: String): String = buildString {
+        appendLine("Pertanyaan user: $query")
+        appendLine()
+        appendLine("Data market terbaru:")
+        marketAssets.take(20).forEach {
+            appendLine("- ${it.symbol} ${it.name}: ${it.price}, perubahan ${formatPercent(it.changePercent)}, kategori ${it.category}")
+        }
+        appendLine()
+        appendLine("Headline berita terbaru:")
+        newsArticles.take(8).forEach {
+            appendLine("- ${it.title} (${it.source}, ${it.timeAgo}) ringkasan: ${it.summary}")
         }
     }
 
     private fun formatPercent(value: Double): String {
         val sign = if (value >= 0) "+" else ""
         return "$sign${String.format(java.util.Locale("id", "ID"), "%.2f", value)}%"
+    }
+
+    private enum class AiSurface {
+        PAGE,
+        FULLSCREEN
     }
 }
