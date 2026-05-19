@@ -34,6 +34,7 @@ import id.rahmat.newsin.data.api.PublicApiClient
 import id.rahmat.newsin.data.repository.RealNewsInRepository
 import id.rahmat.newsin.domain.model.ChatMessage
 import id.rahmat.newsin.domain.model.MarketAsset
+import id.rahmat.newsin.domain.model.MarketDetailStats
 import id.rahmat.newsin.domain.model.NewsArticle
 import id.rahmat.newsin.domain.model.PastChampion
 import id.rahmat.newsin.presentation.components.SparklineView
@@ -61,7 +62,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
-    private val repository = RealNewsInRepository(PublicApiClient())
+    private val apiClient = PublicApiClient()
+    private val repository = RealNewsInRepository(apiClient)
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val imageExecutor: ExecutorService = Executors.newFixedThreadPool(3)
     private val handler = Handler(Looper.getMainLooper())
@@ -69,6 +71,12 @@ class MainActivity : AppCompatActivity() {
     private val articleContentCache = ConcurrentHashMap<String, String>()
     private val articleContentErrors = ConcurrentHashMap<String, String>()
     private val articleContentLoading = ConcurrentHashMap<String, Boolean>()
+    private val marketChartCache = ConcurrentHashMap<String, List<Float>>()
+    private val marketChartErrors = ConcurrentHashMap<String, String>()
+    private val marketChartLoading = ConcurrentHashMap<String, Boolean>()
+    private val marketDetailStatsCache = ConcurrentHashMap<String, MarketDetailStats>()
+    private val marketDetailStatsErrors = ConcurrentHashMap<String, String>()
+    private val marketDetailStatsLoading = ConcurrentHashMap<String, Boolean>()
     private val chatMessages = mutableListOf<ChatMessage>()
     private var activeAiSurface = AiSurface.PAGE
     private var marketAssets = emptyList<MarketAsset>()
@@ -81,6 +89,11 @@ class MainActivity : AppCompatActivity() {
     private var newsError: String? = null
     private var selectedMarketCategory = "Populer 🔥"
     private val marketCategories = listOf("Populer 🔥", "Indeks", "Futures Indeks", "Saham", "Kripto", "Komoditas", "Mata Uang")
+    private var selectedMarketChartRange = "1Mgg"
+    private var activeMarketChartKey: String? = null
+    private var activeMarketSymbol: String? = null
+    private var selectedMarketDetailTab = "Ikhtisar"
+    private var marketDetailExpanded = false
     private var selectedNewsCategory = "Real News"
     private val newsCategories = listOf("Real News", "Latest", "NASA", "SpaceX", "World", "Technology")
     private lateinit var content: FrameLayout
@@ -198,7 +211,7 @@ class MainActivity : AppCompatActivity() {
         screen.addView(marketCategoryChips())
         when {
             marketLoading -> {
-                screen.addView(loadingCard("Mengambil harga real dari CoinGecko dan Currency API..."))
+                screen.addView(loadingCard("Memperbarui data pasar terkini..."))
                 screen.addGap(10)
             }
             marketError != null -> {
@@ -206,7 +219,7 @@ class MainActivity : AppCompatActivity() {
                 screen.addGap(10)
             }
             marketAssets.isEmpty() -> {
-                screen.addView(loadingCard("Menyiapkan data market real..."))
+                screen.addView(loadingCard("Menyiapkan ringkasan pasar..."))
                 loadMarkets { renderMarket() }
                 screen.addGap(10)
             }
@@ -227,7 +240,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         screen.addGap(6)
-        screen.addView(infoCard("Sumber market: CoinGecko API dan Currency API dari daftar public-apis. Ketuk instrumen untuk membuka detail."))
+        screen.addView(infoCard("Ketuk instrumen untuk melihat detail harga, grafik, dan statistik pasar."))
         displayScroll(screen)
     }
 
@@ -281,7 +294,7 @@ class MainActivity : AppCompatActivity() {
     private fun emptyMarketCategoryCard(): View = card().apply {
         addView(text("Belum ada data ${selectedMarketTitle()}", 16f, R.color.newsin_text_primary, Typeface.BOLD))
         addGap(6)
-        addView(text("Di public-apis, sumber saham/indeks real-time tanpa API key sangat terbatas. Data yang aktif sekarang difokuskan ke crypto, mata uang, emas, dan perak.", 13f, R.color.newsin_text_secondary))
+        addView(text("Kategori ini belum tersedia. Pantau crypto, mata uang, emas, dan perak dari daftar pasar aktif.", 13f, R.color.newsin_text_secondary))
     }
 
     private fun marketItem(asset: MarketAsset): View {
@@ -323,6 +336,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openMarketDetail(asset: MarketAsset) {
+        if (activeMarketSymbol != asset.symbol) {
+            activeMarketSymbol = asset.symbol
+            selectedMarketDetailTab = "Ikhtisar"
+            selectedMarketChartRange = "1Mgg"
+            marketDetailExpanded = false
+        }
         bottomNav.visibility = View.VISIBLE
         val screen = screenScroll()
         screen.addView(marketDetailBar(asset))
@@ -332,9 +351,9 @@ class MainActivity : AppCompatActivity() {
         screen.addView(text(asset.price, 38f, R.color.newsin_text_primary, Typeface.BOLD))
         screen.addView(text("${asset.changeValue} (${formatPercent(asset.changePercent)})", 18f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
         screen.addGap(4)
-        screen.addView(text("${asset.updatedAt} - Real time. ${asset.source}", 14f, R.color.newsin_text_muted))
+        screen.addView(text("${asset.updatedAt} - Market feed", 14f, R.color.newsin_text_muted))
         screen.addGap(18)
-        screen.addView(horizontalChips(listOf("Ikhtisar", "Teknikal", "Berita", "Analisis", "Data")))
+        screen.addView(marketDetailTabs(asset))
         screen.addGap(10)
         screen.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -354,33 +373,289 @@ class MainActivity : AppCompatActivity() {
             })
         })
         screen.addGap(12)
+        val chartKey = marketChartKey(asset)
+        val chartData = marketChartCache[chartKey] ?: asset.sparkline
         screen.addView(FrameLayout(this).apply {
             background = rounded(R.color.newsin_background, 0)
             addView(SparklineView(context).apply {
-                submit(asset.sparkline.ifEmpty { listOf(1f, 1.2f, 1.1f, 1.4f, 1.3f) }, asset.isPositive, largeChart = true)
+                submit(chartData.ifEmpty { listOf(1f, 1.2f, 1.1f, 1.4f, 1.3f) }, asset.isPositive, largeChart = true)
             }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            addView(text(selectedMarketChartRange, 12f, R.color.newsin_text_muted, Typeface.BOLD).apply {
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                background = rounded(R.color.newsin_card, 4, R.color.newsin_hairline)
+            }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.START or Gravity.TOP))
             addView(text(asset.price, 13f, R.color.newsin_text_primary, Typeface.BOLD).apply {
                 setPadding(dp(8), dp(4), dp(8), dp(4))
                 background = rounded(R.color.newsin_card, 4, R.color.newsin_hairline)
             }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.BOTTOM))
+            when {
+                marketChartLoading[chartKey] == true -> addView(text("Memperbarui grafik...", 12f, R.color.newsin_accent, Typeface.BOLD).apply {
+                    setPadding(dp(8), dp(4), dp(8), dp(4))
+                    background = rounded(R.color.newsin_card, 4, R.color.newsin_hairline)
+                }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.TOP))
+                marketChartErrors[chartKey] != null -> addView(text("Grafik sementara", 12f, R.color.newsin_text_muted, Typeface.BOLD).apply {
+                    setPadding(dp(8), dp(4), dp(8), dp(4))
+                    background = rounded(R.color.newsin_card, 4, R.color.newsin_hairline)
+                }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.TOP))
+            }
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(260)))
         screen.addGap(14)
-        screen.addView(horizontalChips(listOf("1Hr", "1Mgg", "1Bln", "1Thn", "5Thn", "Maks")))
+        screen.addView(marketChartRangeChips(asset))
+        activeMarketChartKey = chartKey
+        loadMarketChart(asset) {
+            if (activeMarketChartKey == chartKey) openMarketDetail(asset)
+        }
+        loadMarketDetailStats(asset) {
+            if (activeMarketSymbol == asset.symbol) openMarketDetail(asset)
+        }
         screen.addGap(18)
-        screen.addView(statRow("Bid/Ask", "${asset.bid}/${asset.ask}"))
-        screen.addView(detailDivider())
-        screen.addView(statRow("Rentang harian", asset.dayRange))
-        screen.addView(detailDivider())
-        screen.addView(statRow("Rentang 52mgg", asset.yearRange))
-        screen.addView(detailDivider())
-        screen.addView(statRow("Close Sebelumnya", asset.previousClose))
-        screen.addView(detailDivider())
-        screen.addView(statRow("Pembukaan", asset.open))
-        screen.addGap(20)
-        screen.addView(text("TAMPILKAN LEBIH BANYAK ⌄", 16f, R.color.newsin_text_primary, Typeface.BOLD).apply {
-            setPadding(dp(6), dp(10), dp(6), dp(10))
-        })
+        screen.addView(marketDetailTabContent(asset))
         displayScroll(screen)
+    }
+
+    private fun marketDetailTabs(asset: MarketAsset): HorizontalScrollView {
+        val labels = listOf("Ikhtisar", "Teknikal", "Berita", "Analisis", "Data")
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(4), 0, dp(12))
+        }
+        labels.forEach { label ->
+            row.addView(chip(label, label == selectedMarketDetailTab).apply {
+                setOnClickListener {
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    selectedMarketDetailTab = label
+                    openMarketDetail(asset)
+                }
+            })
+        }
+        return HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(row)
+        }
+    }
+
+    private fun marketDetailTabContent(asset: MarketAsset): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            when (selectedMarketDetailTab) {
+                "Teknikal" -> addTechnicalTab(asset)
+                "Berita" -> addNewsTab(asset)
+                "Analisis" -> addAnalysisTab(asset)
+                "Data" -> addDataTab(asset)
+                else -> addOverviewTab(asset)
+            }
+        }
+
+    private fun LinearLayout.addOverviewTab(asset: MarketAsset) {
+        val stats = marketDetailStats(asset)
+        addDetailStatRows(stats)
+        addGap(16)
+        addMoreButton(asset)
+    }
+
+    private fun LinearLayout.addDetailStatRows(stats: MarketDetailStats?) {
+        addView(statRow("Bid/Ask", detailValue(stats) { it.bidAsk }))
+        addView(detailDivider())
+        addView(statRow("Rentang harian", detailValue(stats) { it.dayRange }))
+        addView(detailDivider())
+        addView(statRow("Rentang 52mgg", detailValue(stats) { it.yearRange }))
+        addView(detailDivider())
+        addView(statRow("Close Sebelumnya", detailValue(stats) { it.previousClose }))
+        addView(detailDivider())
+        addView(statRow("Pembukaan", detailValue(stats) { it.open }))
+        if (marketDetailExpanded) {
+            addView(detailDivider())
+            addView(statRow("Volume 24j", detailValue(stats) { it.volume24h }))
+            addView(detailDivider())
+            addView(statRow("Market Cap", detailValue(stats) { it.marketCap }))
+            addView(detailDivider())
+            addView(statRow("Peringkat", detailValue(stats) { it.rank }))
+            addView(detailDivider())
+            addView(statRow("Supply Beredar", detailValue(stats) { it.circulatingSupply }))
+        }
+    }
+
+    private fun LinearLayout.addTechnicalTab(asset: MarketAsset) {
+        val points = marketChartCache[marketChartKey(asset)] ?: asset.sparkline
+        val first = points.firstOrNull()
+        val last = points.lastOrNull()
+        val high = points.maxOrNull()
+        val low = points.minOrNull()
+        val momentum = if (first != null && last != null && first != 0f) ((last - first) / first) * 100.0 else null
+        val volatility = if (first != null && high != null && low != null && first != 0f) ((high - low) / first) * 100.0 else null
+        val trend = when {
+            momentum == null -> "Memperbarui..."
+            momentum >= 0 -> "Naik ${formatPercent(momentum)}"
+            else -> "Turun ${formatPercent(momentum)}"
+        }
+        addView(card().apply {
+            addView(text("Sinyal Teknikal", 18f, R.color.newsin_text_primary, Typeface.BOLD))
+            addGap(6)
+            addView(text("Dihitung dari histori harga pada rentang $selectedMarketChartRange.", 13f, R.color.newsin_text_muted))
+        })
+        addGap(12)
+        addView(statRow("Trend Rentang", trend))
+        addView(detailDivider())
+        addView(statRow("Harga Tertinggi", high?.let { formatRawPrice(asset, it.toDouble()) } ?: "-"))
+        addView(detailDivider())
+        addView(statRow("Harga Terendah", low?.let { formatRawPrice(asset, it.toDouble()) } ?: "-"))
+        addView(detailDivider())
+        addView(statRow("Volatilitas", volatility?.let { formatPercent(it) } ?: "-"))
+    }
+
+    private fun LinearLayout.addNewsTab(asset: MarketAsset) {
+        if (newsArticles.isEmpty()) loadNews { if (activeMarketSymbol == asset.symbol) openMarketDetail(asset) }
+        val related = newsArticles.filter {
+            it.title.contains(asset.symbol, ignoreCase = true) ||
+                it.title.contains(asset.name, ignoreCase = true) ||
+                it.summary.contains(asset.symbol, ignoreCase = true) ||
+                it.summary.contains(asset.name, ignoreCase = true)
+        }.ifEmpty { newsArticles.take(5) }
+        if (related.isEmpty()) {
+            addView(loadingCard("Memuat headline pasar..."))
+            return
+        }
+        addView(sectionHeader("Headline Pasar", "${related.size} berita"))
+        addGap(10)
+        related.take(5).forEach { article ->
+            addView(newsSmall(article))
+            addGap(10)
+        }
+    }
+
+    private fun LinearLayout.addAnalysisTab(asset: MarketAsset) {
+        val stats = marketDetailStats(asset)
+        val points = marketChartCache[marketChartKey(asset)] ?: asset.sparkline
+        val momentum = if (points.size >= 2 && points.first() != 0f) {
+            ((points.last() - points.first()) / points.first()) * 100.0
+        } else {
+            null
+        }
+        addView(card().apply {
+            addView(text("Ringkasan Analisis", 18f, R.color.newsin_text_primary, Typeface.BOLD))
+            addGap(8)
+            addView(text(buildString {
+                append("${asset.symbol} bergerak ${formatPercent(asset.changePercent)} dalam 24 jam. ")
+                momentum?.let { append("Pada rentang $selectedMarketChartRange, momentumnya ${formatPercent(it)}. ") }
+                if (stats != null) append("Rentang harian ${stats.dayRange}, volume 24j ${stats.volume24h}. ")
+                append("Gunakan ini sebagai konteks awal, bukan saran beli/jual.")
+            }, 14f, R.color.newsin_text_secondary))
+            addGap(12)
+            addView(actionButton("Tanyakan AI tentang ${asset.symbol}") { askAiAboutAsset(asset) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
+        })
+    }
+
+    private fun LinearLayout.addDataTab(asset: MarketAsset) {
+        val stats = marketDetailStats(asset)
+        addView(card().apply {
+            addView(text("Data Pasar", 18f, R.color.newsin_text_primary, Typeface.BOLD))
+            addGap(6)
+            addView(text("${asset.unit.ifBlank { asset.symbol }} • ${asset.updatedAt}", 13f, R.color.newsin_text_muted))
+        })
+        addGap(12)
+        addDetailStatRows(stats)
+        addGap(16)
+        addMoreButton(asset)
+    }
+
+    private fun LinearLayout.addMoreButton(asset: MarketAsset) {
+        addView(text(if (marketDetailExpanded) "SEMBUNYIKAN DATA ^" else "TAMPILKAN LEBIH BANYAK v", 16f, R.color.newsin_text_primary, Typeface.BOLD).apply {
+            setPadding(dp(6), dp(10), dp(6), dp(10))
+            setOnClickListener {
+                marketDetailExpanded = !marketDetailExpanded
+                openMarketDetail(asset)
+            }
+        })
+    }
+
+    private fun detailValue(stats: MarketDetailStats?, value: (MarketDetailStats) -> String): String =
+        stats?.let(value)?.takeIf { it.isNotBlank() } ?: when {
+            marketDetailStatsLoading.values.any { it } -> "Memperbarui..."
+            else -> "-"
+        }
+
+    private fun marketDetailStats(asset: MarketAsset): MarketDetailStats? =
+        marketDetailStatsCache[marketDetailStatsKey(asset)]
+
+    private fun marketDetailStatsKey(asset: MarketAsset): String =
+        asset.chartId ?: asset.symbol
+
+    private fun formatRawPrice(asset: MarketAsset, value: Double): String =
+        if (asset.category == "Kripto" || asset.symbol.contains("/USD")) {
+            "$" + String.format(Locale("id", "ID"), if (kotlin.math.abs(value) < 10) "%.4f" else "%.2f", value)
+        } else {
+            String.format(Locale("id", "ID"), if (kotlin.math.abs(value) < 10) "%.4f" else "%.2f", value)
+        }
+
+    private fun marketChartRangeChips(asset: MarketAsset): HorizontalScrollView {
+        val labels = listOf("1Hr", "1Mgg", "1Bln", "1Thn", "5Thn", "Maks")
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(4), 0, dp(12))
+        }
+        labels.forEach { label ->
+            row.addView(chip(label, label == selectedMarketChartRange).apply {
+                setOnClickListener {
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    selectedMarketChartRange = label
+                    openMarketDetail(asset)
+                }
+            })
+        }
+        return HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(row)
+        }
+    }
+
+    private fun marketChartKey(asset: MarketAsset): String =
+        "${asset.chartId ?: asset.symbol}:${chartDays()}"
+
+    private fun chartDays(): Int = when (selectedMarketChartRange) {
+        "1Hr" -> 1
+        "1Bln" -> 30
+        "1Thn" -> 365
+        "5Thn" -> 365 * 5
+        "Maks" -> 365 * 10
+        else -> 7
+    }
+
+    private fun loadMarketChart(asset: MarketAsset, done: () -> Unit) {
+        val days = chartDays()
+        val key = "${asset.chartId ?: asset.symbol}:$days"
+        if (marketChartCache.containsKey(key) || marketChartLoading.putIfAbsent(key, true) == true) return
+        marketChartErrors.remove(key)
+        executor.execute {
+            val result = runCatching { apiClient.fetchMarketChart(asset, days) }
+            runOnUiThread {
+                result.onSuccess { points ->
+                    if (points.size >= 2) {
+                        marketChartCache[key] = points
+                    } else {
+                        marketChartErrors[key] = "Data grafik belum tersedia"
+                    }
+                }.onFailure {
+                    marketChartErrors[key] = it.message ?: it.javaClass.simpleName
+                }
+                marketChartLoading.remove(key)
+                done()
+            }
+        }
+    }
+
+    private fun loadMarketDetailStats(asset: MarketAsset, done: () -> Unit) {
+        val key = marketDetailStatsKey(asset)
+        if (marketDetailStatsCache.containsKey(key) || marketDetailStatsLoading.putIfAbsent(key, true) == true) return
+        marketDetailStatsErrors.remove(key)
+        executor.execute {
+            val result = runCatching { apiClient.fetchMarketDetailStats(asset) }
+            runOnUiThread {
+                result.onSuccess { marketDetailStatsCache[key] = it }
+                    .onFailure { marketDetailStatsErrors[key] = it.message ?: it.javaClass.simpleName }
+                marketDetailStatsLoading.remove(key)
+                done()
+            }
+        }
     }
 
     private fun marketDetailBar(asset: MarketAsset): LinearLayout =
@@ -413,7 +688,7 @@ class MainActivity : AppCompatActivity() {
         screen.addView(newsCategoryChips())
         when {
             newsLoading -> {
-                screen.addView(loadingCard("Mengambil headline real dari Spaceflight News API..."))
+                screen.addView(loadingCard("Memperbarui berita terbaru..."))
                 displayScroll(screen)
                 return
             }
@@ -423,7 +698,7 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             newsArticles.isEmpty() -> {
-                screen.addView(loadingCard("Menyiapkan berita real..."))
+                screen.addView(loadingCard("Menyiapkan headline pilihan..."))
                 loadNews { renderNews() }
                 displayScroll(screen)
                 return
@@ -476,13 +751,13 @@ class MainActivity : AppCompatActivity() {
     private fun newsBrief(articles: List<NewsArticle>): View = card().apply {
         addView(text("${articles.size} headline aktif", 18f, R.color.newsin_text_primary, Typeface.BOLD))
         addGap(4)
-        addView(text("Sumber: Spaceflight News API dari public-apis • Filter: $selectedNewsCategory", 12f, R.color.newsin_text_muted))
+        addView(text("Headline terbaru • Filter: $selectedNewsCategory", 12f, R.color.newsin_text_muted))
     }
 
     private fun emptyNewsCategoryCard(): View = card().apply {
         addView(text("Belum ada berita $selectedNewsCategory", 16f, R.color.newsin_text_primary, Typeface.BOLD))
         addGap(6)
-        addView(text("Coba kategori Latest atau Real News untuk melihat semua headline terbaru yang tersedia dari API.", 13f, R.color.newsin_text_secondary))
+        addView(text("Coba kategori Latest atau Real News untuk melihat semua headline terbaru yang tersedia.", 13f, R.color.newsin_text_secondary))
     }
 
     private fun featuredNews(article: NewsArticle): View = card().apply {
@@ -580,7 +855,7 @@ class MainActivity : AppCompatActivity() {
             articleContentLoading[article.id] == true -> {
                 addView(text(cleanSummary(article), 16f, R.color.newsin_text_secondary))
                 addGap(12)
-                addView(text("Mengambil artikel lengkap dari sumber asli...", 13f, R.color.newsin_accent, Typeface.BOLD))
+                addView(text("Memuat artikel lengkap...", 13f, R.color.newsin_accent, Typeface.BOLD))
             }
             error != null -> {
                 addView(text(cleanSummary(article), 16f, R.color.newsin_text_secondary))
@@ -837,7 +1112,7 @@ class MainActivity : AppCompatActivity() {
         val strongest = marketAssets.maxByOrNull { kotlin.math.abs(it.changePercent) }
         addView(text(latest?.title ?: "Memuat berita terbaru...", 17f, R.color.newsin_text_primary, Typeface.BOLD))
         addGap(6)
-        addView(text(latest?.let { "${it.source} • ${it.timeAgo}" } ?: "Spaceflight News API", 12f, R.color.newsin_text_muted))
+        addView(text(latest?.let { "${it.source} • ${it.timeAgo}" } ?: "Headline terbaru", 12f, R.color.newsin_text_muted))
         addGap(10)
         val impact = if (latest != null && strongest != null) {
             "Pertanyaan yang bagus untuk AI: berita ini memengaruhi sentimen risiko atau tidak, dan apakah ada kaitannya dengan pergerakan ${strongest.symbol} ${formatPercent(strongest.changePercent)}?"
@@ -988,7 +1263,7 @@ class MainActivity : AppCompatActivity() {
         addGap(7)
         addView(text("${asset.price} • update ${asset.updatedAt}", 12f, R.color.newsin_text_muted))
         addGap(8)
-        addView(text("Data harga, perubahan 24 jam, dan sparkline berasal dari CoinGecko API.", 13f, R.color.newsin_text_secondary))
+        addView(text("Harga, perubahan 24 jam, dan grafik mini diperbarui dari market feed.", 13f, R.color.newsin_text_secondary))
         addGap(10)
         addView(secondaryActionButton("Tanyakan AI tentang ${asset.symbol}") { askAiAboutAsset(asset) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)))
         setOnClickListener { askAiAboutAsset(asset) }
@@ -999,7 +1274,7 @@ class MainActivity : AppCompatActivity() {
         val screen = screenScroll()
         screen.addView(watchlistToolbar())
         if (marketAssets.isEmpty()) {
-            screen.addView(loadingCard("Mengambil aset real untuk watchlist..."))
+            screen.addView(loadingCard("Memperbarui aset watchlist..."))
             loadMarkets { renderWatchlist() }
         } else {
             val watched = watchlistAssets()
@@ -1089,7 +1364,7 @@ class MainActivity : AppCompatActivity() {
         screen.addView(text("Pilih aset yang ingin dipantau.", 13f, R.color.newsin_text_muted))
         screen.addGap(12)
         if (marketAssets.isEmpty()) {
-            screen.addView(loadingCard("Mengambil daftar aset..."))
+            screen.addView(loadingCard("Memuat daftar aset..."))
             loadMarkets { renderWatchlistPicker() }
         } else {
             marketAssets.forEach { asset ->
@@ -1169,7 +1444,7 @@ class MainActivity : AppCompatActivity() {
         screen.addGap(8)
         if (marketAssets.isEmpty()) {
             loadMarkets { renderMore() }
-            screen.addView(loadingCard("Mengambil preview market real..."))
+            screen.addView(loadingCard("Memperbarui preview market..."))
         } else {
             marketAssets.take(2).forEach { screen.addView(compactAsset(it)) }
         }
@@ -1330,7 +1605,7 @@ class MainActivity : AppCompatActivity() {
             results.addView(sectionHeader(if (cleanQuery.isBlank()) "Hasil Populer" else "Aset", "${filteredAssets.size} hasil"))
             results.addGap(10)
             if (marketLoading && marketAssets.isEmpty()) {
-                results.addView(loadingCard("Mengambil data market..."))
+                results.addView(loadingCard("Memuat data market..."))
                 results.addGap(10)
             } else if (filteredAssets.isEmpty()) {
                 results.addView(infoCard("Tidak ada aset yang cocok. Coba cari BTC, USD, emas, solana, atau nama aset lain."))
@@ -1345,7 +1620,7 @@ class MainActivity : AppCompatActivity() {
             results.addView(sectionHeader("Berita", "${filteredNews.size} hasil"))
             results.addGap(10)
             if (newsLoading && newsArticles.isEmpty()) {
-                results.addView(loadingCard("Mengambil berita..."))
+                results.addView(loadingCard("Memuat berita..."))
             } else if (filteredNews.isEmpty()) {
                 results.addView(infoCard("Belum ada berita yang cocok dengan pencarian ini."))
             } else {
@@ -1437,7 +1712,7 @@ class MainActivity : AppCompatActivity() {
     private fun errorCard(title: String, message: String, retry: () -> Unit): View = card().apply {
         addView(text(title, 16f, R.color.newsin_negative, Typeface.BOLD))
         addGap(6)
-        addView(text(message.ifBlank { "Periksa koneksi internet atau rate limit API." }, 13f, R.color.newsin_text_secondary))
+        addView(text(message.ifBlank { "Periksa koneksi internet atau coba lagi beberapa saat lagi." }, 13f, R.color.newsin_text_secondary))
         addGap(10)
         addView(actionButton("Coba Lagi") { retry() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
     }
@@ -1474,7 +1749,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendRealAiQuestion(query: String, visibleQuestion: String = query) {
         chatMessages.add(ChatMessage(UUID.randomUUID().toString(), visibleQuestion, "Baru saja", true))
-        chatMessages.add(ChatMessage(UUID.randomUUID().toString(), "Mengambil data real terbaru...", "Baru saja", false))
+        chatMessages.add(ChatMessage(UUID.randomUUID().toString(), "Menganalisis data terbaru...", "Baru saja", false))
         renderActiveAiSurface()
         executor.execute {
             val answer = runCatching { answerWithConfiguredAi(query) }
@@ -1544,7 +1819,7 @@ class MainActivity : AppCompatActivity() {
                 append(notice)
                 append(" Saya pakai analisis lokal dari data aplikasi. ")
             } else {
-                append("AI key belum diisi, jadi ini analisis lokal dari data aplikasi. ")
+                append("Saya memakai analisis lokal dari data pasar dan berita terbaru. ")
             }
             if (strongest != null && weakest != null) {
                 append("${strongest.symbol} paling kuat (${formatPercent(strongest.changePercent)}), ")
@@ -1555,7 +1830,7 @@ class MainActivity : AppCompatActivity() {
                 append("Berita seperti ini perlu dicek apakah berdampak ke sentimen risiko, sektor terkait, atau hanya informasi umum. ")
             }
             append("Pertanyaan kamu: \"${query.take(180)}${if (query.length > 180) "..." else ""}\". ")
-            if (notice == null) append("Isi .env untuk jawaban AI yang lebih dalam.")
+            if (notice == null) append("Gunakan ini sebagai ringkasan awal, bukan saran investasi personal.")
         }
         return ChatMessage(
             id = UUID.randomUUID().toString(),
@@ -1624,11 +1899,11 @@ class MainActivity : AppCompatActivity() {
     private fun friendlyAiError(message: String): String = when {
         message.contains("insufficient_quota", ignoreCase = true) ||
             message.contains("Kuota AI habis", ignoreCase = true) ->
-            "Kuota AI dari API key sedang habis atau billing belum aktif."
+            "Layanan AI sedang tidak tersedia. Saya pakai analisis lokal dari data aplikasi."
         message.contains("429") ->
             "AI sedang membatasi request atau kuota akun habis."
         message.contains("401") || message.contains("invalid", ignoreCase = true) ->
-            "API key AI tidak valid atau belum bisa dipakai."
+            "Layanan AI belum bisa dipakai. Saya pakai analisis lokal dari data aplikasi."
         message.isBlank() ->
             "AI online belum bisa dihubungi."
         else ->

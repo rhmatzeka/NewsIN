@@ -23,9 +23,9 @@ class RealNewsInRepository(
 
     override fun aiPick(): AiStockPick = AiStockPick(
         market = "Crypto Global",
-        totalReturn = "Data real CoinGecko",
+        totalReturn = "Data market terbaru",
         benchmarkReturn = "24 jam",
-        highlight = "Ide dihitung dari aset real yang berhasil dimuat dari CoinGecko, bukan data dummy."
+        highlight = "Ide dihitung dari aset aktif yang berhasil diperbarui, bukan data dummy."
     )
 
     override fun champions(): List<PastChampion> = emptyList()
@@ -40,7 +40,7 @@ class RealNewsInRepository(
     override fun initialChat(): List<ChatMessage> = listOf(
         ChatMessage(
             id = "hello",
-            text = "Halo, saya WarrenAI. Saya memakai harga real dari CoinGecko dan headline real dari Spaceflight News API. Tanya crypto atau ringkasan berita terbaru.",
+            text = "Halo, saya WarrenAI. Saya memakai data pasar dan headline terbaru untuk membantu merangkum aset, berita, dan risiko utama.",
             timestamp = now(),
             fromUser = false
         )

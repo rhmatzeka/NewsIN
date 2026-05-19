@@ -2,6 +2,7 @@ package id.rahmat.newsin.data.api
 
 import android.graphics.Color
 import id.rahmat.newsin.domain.model.AssetTag
+import id.rahmat.newsin.domain.model.MarketDetailStats
 import id.rahmat.newsin.domain.model.MarketAsset
 import id.rahmat.newsin.domain.model.NewsArticle
 import org.json.JSONArray
@@ -43,8 +44,9 @@ class PublicApiClient {
                 updatedAt = formatUpdatedAt(item.optString("last_updated")),
                 sparkline = parseSparkline(item.optJSONObject("sparkline_in_7d")?.optJSONArray("price")),
                 category = "Kripto",
-                source = "CoinGecko",
+                source = "Market Feed",
                 unit = "${item.optString("symbol").uppercase(Locale.US)}/USD",
+                chartId = item.optString("id").takeIf { it.isNotBlank() },
                 bid = formatUsd(price * 0.9995),
                 ask = formatUsd(price * 1.0005),
                 dayRange = "${formatUsd(low)} - ${formatUsd(high)}",
@@ -100,8 +102,9 @@ class PublicApiClient {
                 updatedAt = "$date",
                 sparkline = history,
                 category = spec.category,
-                source = "Currency API",
+                source = "FX Feed",
                 unit = spec.symbol,
+                chartId = spec.code,
                 bid = formatter(currentPrice * 0.9996),
                 ask = formatter(currentPrice * 1.0004),
                 dayRange = "${formatter(minOf(currentPrice, previousPrice))} - ${formatter(maxOf(currentPrice, previousPrice))}",
@@ -137,6 +140,81 @@ class PublicApiClient {
         }.filter { it.title.isNotBlank() }
     }
 
+    fun fetchMarketChart(asset: MarketAsset, days: Int): List<Float> {
+        if (asset.category == "Kripto" && !asset.chartId.isNullOrBlank()) {
+            val json = request(
+                "https://api.coingecko.com/api/v3/coins/${asset.chartId}/market_chart" +
+                    "?vs_currency=usd&days=$days&precision=full"
+            )
+            val prices = JSONObject(json).getJSONArray("prices")
+            return parsePricePairs(prices)
+        }
+
+        val code = asset.chartId ?: return asset.sparkline
+        val invert = asset.category == "Komoditas" ||
+            asset.symbol in setOf("EUR/USD", "GBP/USD", "AUD/USD", "XAU/USD", "XAG/USD")
+        return fetchCurrencyHistory(code, invert, asset.sparkline.lastOrNull()?.toDouble() ?: 1.0)
+    }
+
+    fun fetchMarketDetailStats(asset: MarketAsset): MarketDetailStats {
+        if (asset.category == "Kripto" && !asset.chartId.isNullOrBlank()) {
+            val detail = JSONObject(
+                request(
+                    "https://api.coingecko.com/api/v3/coins/${asset.chartId}" +
+                        "?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false"
+                )
+            )
+            val marketData = detail.getJSONObject("market_data")
+            val price = marketData.getJSONObject("current_price").optDouble("usd", Double.NaN)
+            val high24h = marketData.getJSONObject("high_24h").optDouble("usd", Double.NaN)
+            val low24h = marketData.getJSONObject("low_24h").optDouble("usd", Double.NaN)
+            val priceChange24h = marketData.optDouble("price_change_24h", Double.NaN)
+            val previousClose = if (!price.isNaN() && !priceChange24h.isNaN()) price - priceChange24h else Double.NaN
+            val dailyPrices = runCatching { fetchMarketChart(asset, 1) }.getOrDefault(emptyList())
+            val yearlyPrices = runCatching { fetchMarketChart(asset, 365) }.getOrDefault(emptyList())
+            val orderBook = runCatching { fetchCoinbaseBidAsk(asset.symbol) }.getOrNull()
+            val open = dailyPrices.firstOrNull()?.toDouble() ?: previousClose
+            val dayLow = dailyPrices.minOrNull()?.toDouble()?.let { minOf(it, low24h) } ?: low24h
+            val dayHigh = dailyPrices.maxOrNull()?.toDouble()?.let { maxOf(it, high24h) } ?: high24h
+            val yearLow = yearlyPrices.minOrNull()?.toDouble()
+            val yearHigh = yearlyPrices.maxOrNull()?.toDouble()
+            return MarketDetailStats(
+                bid = orderBook?.first?.let(::formatUsd).orEmpty(),
+                ask = orderBook?.second?.let(::formatUsd).orEmpty(),
+                dayRange = formatRange(dayLow, dayHigh),
+                yearRange = formatRange(yearLow, yearHigh),
+                previousClose = formatOptionalUsd(previousClose),
+                open = formatOptionalUsd(open),
+                volume24h = formatCompactUsd(marketData.getJSONObject("total_volume").optDouble("usd", Double.NaN)),
+                marketCap = formatCompactUsd(marketData.getJSONObject("market_cap").optDouble("usd", Double.NaN)),
+                rank = detail.optInt("market_cap_rank", 0).takeIf { it > 0 }?.let { "#$it" } ?: "-",
+                circulatingSupply = formatQuantity(marketData.optDouble("circulating_supply", Double.NaN), asset.symbol),
+                change7d = marketData.optDoubleOrNull("price_change_percentage_7d"),
+                change30d = marketData.optDoubleOrNull("price_change_percentage_30d"),
+                change1y = marketData.optDoubleOrNull("price_change_percentage_1y")
+            )
+        }
+
+        val latest = asset.sparkline.lastOrNull()?.toDouble()
+        val low = asset.sparkline.minOrNull()?.toDouble()
+        val high = asset.sparkline.maxOrNull()?.toDouble()
+        return MarketDetailStats(
+            bid = "",
+            ask = "",
+            dayRange = asset.dayRange.takeIf { it.isNotBlank() } ?: formatRange(low, high),
+            yearRange = asset.yearRange,
+            previousClose = asset.previousClose,
+            open = asset.open,
+            volume24h = "-",
+            marketCap = "-",
+            rank = "-",
+            circulatingSupply = latest?.let { formatQuantity(it, asset.symbol) } ?: "-",
+            change7d = null,
+            change30d = null,
+            change1y = null
+        )
+    }
+
     private fun inferNewsCategory(title: String, source: String): String {
         val text = "$title $source".lowercase(Locale.US)
         return when {
@@ -167,6 +245,14 @@ class PublicApiClient {
         }
     }
 
+    private fun fetchCoinbaseBidAsk(symbol: String): Pair<Double, Double>? {
+        val json = request("https://api.exchange.coinbase.com/products/${symbol.uppercase(Locale.US)}-USD/book?level=1")
+        val book = JSONObject(json)
+        val bid = book.optJSONArray("bids")?.optJSONArray(0)?.optString(0)?.toDoubleOrNull()
+        val ask = book.optJSONArray("asks")?.optJSONArray(0)?.optString(0)?.toDoubleOrNull()
+        return if (bid != null && ask != null) bid to ask else null
+    }
+
     private fun parseSparkline(values: JSONArray?): List<Float> {
         if (values == null || values.length() == 0) return emptyList()
         val step = (values.length() / 24).coerceAtLeast(1)
@@ -177,6 +263,20 @@ class PublicApiClient {
             index += step
         }
         return points.takeLast(28)
+    }
+
+    private fun parsePricePairs(values: JSONArray): List<Float> {
+        if (values.length() == 0) return emptyList()
+        val step = (values.length() / 96).coerceAtLeast(1)
+        val points = mutableListOf<Float>()
+        var index = 0
+        while (index < values.length()) {
+            val pair = values.optJSONArray(index)
+            val price = pair?.optDouble(1, Double.NaN) ?: Double.NaN
+            if (!price.isNaN()) points.add(price.toFloat())
+            index += step
+        }
+        return points.takeLast(120)
     }
 
     private fun fetchCurrencyHistory(code: String, invert: Boolean, fallback: Double): List<Float> {
@@ -226,6 +326,48 @@ class PublicApiClient {
         val sign = if (value >= 0) "+" else "-"
         return sign + formatterFor(spec)(abs(value))
     }
+
+    private fun formatOptionalUsd(value: Double?): String =
+        value?.takeIf { !it.isNaN() && !it.isInfinite() }?.let(::formatUsd) ?: "-"
+
+    private fun formatRange(low: Double?, high: Double?): String {
+        val left = formatOptionalUsd(low)
+        val right = formatOptionalUsd(high)
+        return if (left == "-" || right == "-") "-" else "$left - $right"
+    }
+
+    private fun formatCompactUsd(value: Double): String {
+        if (value.isNaN() || value.isInfinite() || value <= 0.0) return "-"
+        val suffixes = listOf(
+            1_000_000_000_000.0 to "T",
+            1_000_000_000.0 to "B",
+            1_000_000.0 to "M"
+        )
+        val match = suffixes.firstOrNull { value >= it.first }
+        return if (match == null) {
+            formatUsd(value)
+        } else {
+            "$" + String.format(Locale.US, "%.2f%s", value / match.first, match.second)
+        }
+    }
+
+    private fun formatQuantity(value: Double, symbol: String): String {
+        if (value.isNaN() || value.isInfinite() || value <= 0.0) return "-"
+        val suffixes = listOf(
+            1_000_000_000.0 to "B",
+            1_000_000.0 to "M",
+            1_000.0 to "K"
+        )
+        val match = suffixes.firstOrNull { value >= it.first }
+        return if (match == null) {
+            "${formatPlain(value)} $symbol"
+        } else {
+            "${String.format(Locale.US, "%.2f%s", value / match.first, match.second)} $symbol"
+        }
+    }
+
+    private fun JSONObject.optDoubleOrNull(name: String): Double? =
+        if (has(name) && !isNull(name)) optDouble(name, Double.NaN).takeIf { !it.isNaN() && !it.isInfinite() } else null
 
     private fun formatterFor(spec: CurrencySpec): (Double) -> String = when {
         spec.code == "idr" -> ::formatIdrLike

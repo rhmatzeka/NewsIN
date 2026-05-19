@@ -7,8 +7,8 @@ import android.graphics.Path
 import android.util.AttributeSet
 import android.view.View
 import id.rahmat.newsin.R
+import kotlin.math.abs
 import kotlin.math.max
-import kotlin.math.min
 
 class SparklineView @JvmOverloads constructor(
     context: Context,
@@ -51,7 +51,9 @@ class SparklineView @JvmOverloads constructor(
 
         val minValue = points.minOrNull() ?: return
         val maxValue = points.maxOrNull() ?: return
-        val range = max(1f, maxValue - minValue)
+        val rawRange = maxValue - minValue
+        val reference = max(abs(maxValue), abs(minValue)).coerceAtLeast(0.000001f)
+        val range = if (rawRange <= reference * 0.000001f) reference * 0.01f else rawRange
         val stepX = width.toFloat() / (points.size - 1)
         val topPad = 6f
         val bottomPad = 6f
@@ -67,7 +69,7 @@ class SparklineView @JvmOverloads constructor(
 
         points.forEachIndexed { index, value ->
             val x = index * stepX
-            val normalized = (value - minValue) / range
+            val normalized = if (rawRange <= reference * 0.000001f) 0.5f else (value - minValue) / range
             val y = height - bottomPad - (normalized * chartHeight)
             if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
