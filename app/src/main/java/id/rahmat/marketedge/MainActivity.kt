@@ -82,6 +82,7 @@ class MainActivity : AppCompatActivity() {
     private val marketDetailStatsLoading = ConcurrentHashMap<String, Boolean>()
     private val chatMessages = mutableListOf<ChatMessage>()
     private var activeAiSurface = AiSurface.PAGE
+    private var pendingIdeasChatScroll = false
     private var marketAssets = emptyList<MarketAsset>()
     private var newsArticles = emptyList<NewsArticle>()
     private val watchlistSymbols = linkedSetOf("BTC", "ETH", "SOL")
@@ -1232,6 +1233,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderIdeas() {
         activeAiSurface = AiSurface.PAGE
+        val shouldScrollToChat = pendingIdeasChatScroll
+        pendingIdeasChatScroll = false
         syncBottomNav(R.id.nav_ideas)
         setTopLevelScreen(R.id.nav_ideas)
         val pick = repository.aiPick()
@@ -1256,7 +1259,8 @@ class MainActivity : AppCompatActivity() {
         screen.addGap(10)
         screen.addView(aiAssetRail())
         screen.addGap(16)
-        screen.addView(sectionHeader("Tanya AI"))
+        val chatAnchor = sectionHeader("Tanya AI")
+        screen.addView(chatAnchor)
         screen.addGap(10)
         screen.addView(aiSuggestions())
         screen.addGap(10)
@@ -1273,6 +1277,12 @@ class MainActivity : AppCompatActivity() {
             screen.addGap(10)
         }
         displayScroll(screen)
+        if (shouldScrollToChat) {
+            val scroll = screen.tag as ScrollView
+            scroll.post {
+                scroll.smoothScrollTo(0, (chatAnchor.top - dp(10)).coerceAtLeast(0))
+            }
+        }
     }
 
     private fun aiPickCard(): View = card().apply {
@@ -1312,21 +1322,31 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun newsImpactCard(): View = card().apply {
+        setPadding(dp(12), dp(10), dp(12), dp(10))
         val latest = newsArticles.firstOrNull()
         val strongest = marketAssets.maxByOrNull { kotlin.math.abs(it.changePercent) }
-        addView(text(latest?.title ?: "Memuat berita terbaru...", 17f, R.color.marketedge_text_primary, Typeface.BOLD))
-        addGap(6)
-        addView(text(latest?.let { "${it.source} • ${it.timeAgo}" } ?: "Headline terbaru", 12f, R.color.marketedge_text_muted))
-        addGap(10)
+        addView(text(latest?.title ?: "Memuat berita terbaru...", 14f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+        })
+        addGap(4)
+        addView(text(latest?.let { "${it.source} • ${it.timeAgo}" } ?: "Headline terbaru", 10f, R.color.marketedge_text_muted).apply {
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        })
+        addGap(8)
         val impact = if (latest != null && strongest != null) {
             "Pertanyaan yang bagus untuk AI: berita ini memengaruhi sentimen risiko atau tidak, dan apakah ada kaitannya dengan pergerakan ${strongest.symbol} ${formatPercent(strongest.changePercent)}?"
         } else {
             "AI akan membantu menjelaskan apakah sebuah berita kemungkinan berdampak ke aset, sentimen pasar, atau hanya headline umum."
         }
-        addView(text(impact, 14f, R.color.marketedge_text_secondary))
+        addView(text(impact, 12f, R.color.marketedge_text_secondary).apply {
+            maxLines = 3
+            ellipsize = TextUtils.TruncateAt.END
+        })
         if (latest != null) {
-            addGap(12)
-            addView(actionButton("Tanyakan Berita Ini") { askAiAboutNews(latest) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
+            addGap(10)
+            addView(actionButton("Tanyakan AI") { askAiAboutNews(latest) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)))
         }
     }
 
@@ -2073,6 +2093,7 @@ class MainActivity : AppCompatActivity() {
     private fun sendRealAiQuestion(query: String, visibleQuestion: String = query) {
         chatMessages.add(ChatMessage(UUID.randomUUID().toString(), visibleQuestion, "Baru saja", true))
         chatMessages.add(ChatMessage(UUID.randomUUID().toString(), "Menganalisis data terbaru...", "Baru saja", false))
+        if (activeAiSurface == AiSurface.PAGE) pendingIdeasChatScroll = true
         renderActiveAiSurface()
         executor.execute {
             val answer = runCatching { answerWithConfiguredAi(query) }
@@ -2081,6 +2102,7 @@ class MainActivity : AppCompatActivity() {
                 chatMessages.add(answer.getOrElse {
                     localAiAnswer(query, friendlyAiError(it.message.orEmpty()))
                 })
+                if (activeAiSurface == AiSurface.PAGE) pendingIdeasChatScroll = true
                 renderActiveAiSurface()
             }
         }
@@ -2088,6 +2110,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun askAiAboutNews(article: NewsArticle) {
         activeAiSurface = AiSurface.PAGE
+        pendingIdeasChatScroll = true
         bottomNav.selectedItemId = R.id.nav_ideas
         val relatedAssets = marketAssets.sortedByDescending { kotlin.math.abs(it.changePercent) }
             .take(5)
@@ -2099,11 +2122,12 @@ class MainActivity : AppCompatActivity() {
             if (relatedAssets.isNotBlank()) append("Aset yang sedang bergerak besar: $relatedAssets. ")
             append("Jawab simpel: dampaknya apa, aset mana yang mungkin sensitif, dan risiko salah tafsirnya.")
         }
-        sendRealAiQuestion(prompt, "Tanyakan dampak berita: ${article.title}")
+        sendRealAiQuestion(prompt, "Dampak berita: ${article.title}")
     }
 
     private fun askAiAboutAsset(asset: MarketAsset) {
         activeAiSurface = AiSurface.PAGE
+        pendingIdeasChatScroll = true
         bottomNav.selectedItemId = R.id.nav_ideas
         val latestNews = newsArticles.take(4).joinToString("; ") { it.title }
         val prompt = buildString {
@@ -2125,7 +2149,7 @@ class MainActivity : AppCompatActivity() {
         }
         return ChatMessage(
             id = UUID.randomUUID().toString(),
-            text = response,
+            text = sanitizeAiText(response),
             timestamp = "Baru saja",
             fromUser = false,
             recommendations = marketAssets.sortedByDescending { kotlin.math.abs(it.changePercent) }.take(3),
@@ -2137,27 +2161,38 @@ class MainActivity : AppCompatActivity() {
         val strongest = marketAssets.maxByOrNull { it.changePercent }
         val weakest = marketAssets.minByOrNull { it.changePercent }
         val latest = newsArticles.firstOrNull()
+        val titleFromQuestion = Regex("\"([^\"]+)\"").find(query)?.groupValues?.getOrNull(1)
+        val focusTitle = titleFromQuestion ?: latest?.title
         val text = buildString {
             if (notice != null) {
                 append(notice)
-                append(" Saya pakai analisis lokal dari data aplikasi. ")
+                append("\n\n")
             } else {
-                append("Saya memakai analisis lokal dari data pasar dan berita terbaru. ")
+                append("Saya pakai data market dan headline yang sudah dimuat aplikasi.\n\n")
             }
+            append("Kesimpulan:\n")
+            append(
+                if (focusTitle != null) {
+                    "Berita \"$focusTitle\" lebih dulu dibaca sebagai pemicu sentimen. Dampaknya ke harga belum otomatis pasti, jadi perlu dicek bersama pergerakan aset.\n\n"
+                } else {
+                    "Belum ada headline yang cukup spesifik. Analisis ini memakai pergerakan aset terbaru sebagai konteks awal.\n\n"
+                }
+            )
+            append("Aset yang perlu dipantau:\n")
             if (strongest != null && weakest != null) {
-                append("${strongest.symbol} paling kuat (${formatPercent(strongest.changePercent)}), ")
-                append("${weakest.symbol} paling lemah (${formatPercent(weakest.changePercent)}). ")
+                append("${strongest.symbol} sedang paling kuat (${formatPercent(strongest.changePercent)}). ")
+                append("${weakest.symbol} sedang paling lemah (${formatPercent(weakest.changePercent)}).\n\n")
+            } else {
+                append("Data aset masih dimuat, jadi belum bisa menentukan penggerak terkuat dan terlemah.\n\n")
             }
-            if (latest != null) {
-                append("Headline terbaru: \"${latest.title}\". ")
-                append("Berita seperti ini perlu dicek apakah berdampak ke sentimen risiko, sektor terkait, atau hanya informasi umum. ")
-            }
-            append("Pertanyaan kamu: \"${query.take(180)}${if (query.length > 180) "..." else ""}\". ")
-            if (notice == null) append("Gunakan ini sebagai ringkasan awal, bukan saran investasi personal.")
+            append("Cara membacanya:\n")
+            append("Kalau berita memengaruhi minat risiko global, aset berisiko seperti kripto bisa ikut bergerak. Kalau beritanya hanya spesifik sektor, efeknya bisa kecil atau terlambat.\n\n")
+            append("Risiko:\n")
+            append("Jangan anggap satu headline sebagai penyebab tunggal. Cocokkan dengan volume, arah market utama, dan berita lanjutan. Ini ringkasan awal, bukan saran investasi personal.")
         }
         return ChatMessage(
             id = UUID.randomUUID().toString(),
-            text = text,
+            text = sanitizeAiText(text),
             timestamp = "Baru saja",
             fromUser = false,
             recommendations = marketAssets.sortedByDescending { kotlin.math.abs(it.changePercent) }.take(3),
@@ -2171,7 +2206,7 @@ class MainActivity : AppCompatActivity() {
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "system")
-                    put("content", "Kamu adalah analis market MarketEdge. Jawab dalam Bahasa Indonesia yang mudah dipahami. Jelaskan dampak berita ke aset, risiko, dan konteks, tapi jangan memberi saran investasi personal.")
+                    put("content", "Kamu adalah analis market MarketEdge. Jawab dalam Bahasa Indonesia yang jelas dan ringkas. Jangan pakai markdown, tanda bintang, bullet simbol, tabel, emoji, atau format tebal. Gunakan label teks biasa: Kesimpulan, Dampak, Aset yang dipantau, Risiko. Maksimal 5 paragraf pendek. Jelaskan hubungan berita ke aset dengan hati-hati dan jangan memberi saran investasi personal.")
                 })
                 put(JSONObject().apply {
                     put("role", "user")
@@ -2194,15 +2229,35 @@ class MainActivity : AppCompatActivity() {
             val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
             val body = stream.bufferedReader().use { it.readText() }
             if (connection.responseCode !in 200..299) error(parseAiError(connection.responseCode, body))
-            JSONObject(body)
+            sanitizeAiText(JSONObject(body)
                 .getJSONArray("choices")
                 .getJSONObject(0)
                 .getJSONObject("message")
                 .getString("content")
-                .trim()
+                .trim())
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun sanitizeAiText(value: String): String {
+        val withoutMarkdown = value
+            .replace(Regex("""\*\*(.*?)\*\*"""), "$1")
+            .replace(Regex("""__(.*?)__"""), "$1")
+            .replace(Regex("""`([^`]*)`"""), "$1")
+            .replace("*", "")
+            .replace("#", "")
+            .replace("•", "")
+        return withoutMarkdown
+            .lines()
+            .map { line ->
+                line.trim()
+                    .replace(Regex("""^[-]+[\s]+"""), "")
+                    .replace(Regex("""^[0-9]+[.)][\s]*"""), "")
+            }
+            .filter { it.isNotBlank() }
+            .joinToString("\n\n")
+            .trim()
     }
 
     private fun parseAiError(code: Int, body: String): String {
@@ -2235,6 +2290,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildAiContext(query: String): String = buildString {
         appendLine("Pertanyaan user: $query")
+        appendLine("Format jawaban wajib:")
+        appendLine("Kesimpulan: satu kalimat paling penting.")
+        appendLine("Dampak: jelaskan pengaruh berita ke sentimen atau aset secara hati-hati.")
+        appendLine("Aset yang dipantau: sebutkan aset relevan dari data aplikasi.")
+        appendLine("Risiko: sebutkan batasan analisis. Tanpa markdown, tanpa tanda bintang, tanpa bullet simbol.")
         appendLine()
         appendLine("Data market terbaru:")
         marketAssets.take(20).forEach {
