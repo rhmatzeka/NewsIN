@@ -27,6 +27,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Space
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -99,6 +100,10 @@ class MainActivity : AppCompatActivity() {
     private var marketDetailExpanded = false
     private var selectedNewsCategory = "Real News"
     private val newsCategories = listOf("Real News", "Latest", "NASA", "SpaceX", "World", "Technology")
+    private var currentTopLevelNavId = R.id.nav_market
+    private var hardwareBackAction: (() -> Unit)? = null
+    private var activeArticleId: String? = null
+    private var currentArticleBackAction: (() -> Unit)? = null
     private lateinit var content: FrameLayout
     private lateinit var bottomNav: BottomNavigationView
 
@@ -107,6 +112,7 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = getColor(R.color.marketedge_surface)
+        setupHardwareBack()
         requestNotificationPermission()
         showSplash()
     }
@@ -201,6 +207,37 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setTopLevelScreen(itemId: Int) {
+        currentTopLevelNavId = itemId
+        activeArticleId = null
+        currentArticleBackAction = null
+        hardwareBackAction = null
+    }
+
+    private fun setChildBack(action: () -> Unit) {
+        hardwareBackAction = action
+    }
+
+    private fun setupHardwareBack() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                handleHardwareBack()
+            }
+        })
+    }
+
+    private fun handleHardwareBack() {
+        hardwareBackAction?.let { action ->
+            action()
+            return
+        }
+        if (::bottomNav.isInitialized && currentTopLevelNavId != R.id.nav_market) {
+            bottomNav.selectedItemId = R.id.nav_market
+        } else {
+            finish()
+        }
+    }
+
     private fun applyInsets(root: View) {
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -220,6 +257,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderMarket() {
         syncBottomNav(R.id.nav_market)
+        setTopLevelScreen(R.id.nav_market)
         val screen = screenScroll()
         screen.addView(topBar("MarketEdge", showLogo = true) { renderSearch() })
         screen.addView(marketCategoryChips())
@@ -357,6 +395,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openMarketDetail(asset: MarketAsset, refreshData: Boolean = true) {
+        activeArticleId = null
+        currentArticleBackAction = null
+        setChildBack { renderMarket() }
         if (activeMarketSymbol != asset.symbol) {
             activeMarketSymbol = asset.symbol
             selectedMarketDetailTab = "Ikhtisar"
@@ -784,6 +825,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderNews() {
         syncBottomNav(R.id.nav_news)
+        setTopLevelScreen(R.id.nav_news)
         val screen = screenScroll()
         screen.addView(topBar("Berita") { renderSearch { renderNews() } })
         screen.addView(newsCategoryChips())
@@ -942,17 +984,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    private fun openNewsDetail(article: NewsArticle) {
+    private fun openNewsDetail(article: NewsArticle, onBack: () -> Unit = { renderNews() }) {
+        activeArticleId = article.id
+        currentArticleBackAction = onBack
+        setChildBack(onBack)
         requestFullArticle(article)
         val screen = screenScroll()
-        screen.addView(backBar("Berita") { renderNews() })
+        screen.addView(backBar("Berita") { onBack() })
         screen.addView(articleImage(article, 210))
         screen.addGap(14)
         screen.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.TOP
             addView(text(article.title, 24f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(newsBookmarkButton(article) { openNewsDetail(article) }, LinearLayout.LayoutParams(dp(40), dp(40)).apply {
+            addView(newsBookmarkButton(article) { openNewsDetail(article, currentArticleBackAction ?: { renderNews() }) }, LinearLayout.LayoutParams(dp(40), dp(40)).apply {
                 marginStart = dp(10)
             })
         })
@@ -1024,7 +1069,9 @@ class MainActivity : AppCompatActivity() {
                 }.onFailure {
                     articleContentErrors[article.id] = it.message ?: it.javaClass.simpleName
                 }
-                openNewsDetail(article)
+                if (activeArticleId == article.id) {
+                    openNewsDetail(article, currentArticleBackAction ?: { renderNews() })
+                }
             }
         }
     }
@@ -1186,6 +1233,7 @@ class MainActivity : AppCompatActivity() {
     private fun renderIdeas() {
         activeAiSurface = AiSurface.PAGE
         syncBottomNav(R.id.nav_ideas)
+        setTopLevelScreen(R.id.nav_ideas)
         val pick = repository.aiPick()
         val screen = screenScroll()
         screen.addView(topBar("AI") { renderSearch() })
@@ -1307,7 +1355,7 @@ class MainActivity : AppCompatActivity() {
         })
         addView(Space(context), LinearLayout.LayoutParams(1, 0, 1f))
         addView(actionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(34)))
-        setOnClickListener { openNewsDetail(article) }
+        setOnClickListener { openNewsDetail(article) { renderIdeas() } }
     }
 
     private fun aiAssetRail(): HorizontalScrollView {
@@ -1431,6 +1479,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderWatchlist() {
         syncBottomNav(R.id.nav_watchlist)
+        setTopLevelScreen(R.id.nav_watchlist)
         val screen = screenScroll()
         screen.addView(watchlistToolbar())
         if (marketAssets.isEmpty()) {
@@ -1570,7 +1619,7 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(10), dp(10), dp(10))
             background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
-            setOnClickListener { openNewsDetail(article) }
+            setOnClickListener { openNewsDetail(article) { renderWatchlist() } }
             addView(articleImage(article, 54, compact = true), LinearLayout.LayoutParams(dp(64), dp(54)).apply {
                 marginEnd = dp(10)
             })
@@ -1601,6 +1650,7 @@ class MainActivity : AppCompatActivity() {
         }
 
     private fun renderWatchlistPicker() {
+        setChildBack { renderWatchlist() }
         bottomNav.visibility = View.VISIBLE
         val screen = screenScroll()
         screen.addView(backBar("Tambah Watchlist") { renderWatchlist() })
@@ -1674,6 +1724,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderMore() {
         syncBottomNav(R.id.nav_more)
+        setTopLevelScreen(R.id.nav_more)
         val screen = screenScroll()
         screen.addView(topBar("Lainnya") { renderSearch() })
         screen.addView(profileCard())
@@ -1762,6 +1813,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderAiChat() {
         activeAiSurface = AiSurface.FULLSCREEN
+        setChildBack { renderMore() }
         bottomNav.visibility = View.GONE
         if (chatMessages.isEmpty()) chatMessages.addAll(repository.initialChat())
         val root = LinearLayout(this).apply {
@@ -1836,6 +1888,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderSearch(onBack: () -> Unit = { renderMarket() }) {
         bottomNav.visibility = View.GONE
+        setChildBack {
+            bottomNav.visibility = View.VISIBLE
+            onBack()
+        }
         val screen = screenScroll()
         screen.addView(backBar("Cari") {
             bottomNav.visibility = View.VISIBLE
