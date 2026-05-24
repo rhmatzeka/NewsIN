@@ -355,7 +355,7 @@ class MainActivity : AppCompatActivity() {
         return row
     }
 
-    private fun openMarketDetail(asset: MarketAsset) {
+    private fun openMarketDetail(asset: MarketAsset, refreshData: Boolean = true) {
         if (activeMarketSymbol != asset.symbol) {
             activeMarketSymbol = asset.symbol
             selectedMarketDetailTab = "Ikhtisar"
@@ -397,11 +397,13 @@ class MainActivity : AppCompatActivity() {
         screen.addGap(6)
         screen.addView(marketChartRangeChips(asset))
         activeMarketChartKey = chartKey
-        loadMarketChart(asset) {
-            if (activeMarketChartKey == chartKey) openMarketDetail(asset)
-        }
-        loadMarketDetailStats(asset) {
-            if (activeMarketSymbol == asset.symbol) openMarketDetail(asset)
+        if (refreshData) {
+            loadMarketChart(asset) {
+                if (activeMarketChartKey == chartKey) openMarketDetail(asset, refreshData = false)
+            }
+            loadMarketDetailStats(asset) {
+                if (activeMarketSymbol == asset.symbol) openMarketDetail(asset, refreshData = false)
+            }
         }
         screen.addGap(18)
         screen.addView(marketDetailTabContent(asset))
@@ -459,7 +461,7 @@ class MainActivity : AppCompatActivity() {
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(secondaryActionButton("Teknikal") {
                 selectedMarketDetailTab = "Teknikal"
-                openMarketDetail(asset)
+                openMarketDetail(asset, refreshData = false)
             }, LinearLayout.LayoutParams(dp(92), dp(34)))
         }
 
@@ -472,9 +474,10 @@ class MainActivity : AppCompatActivity() {
         labels.forEach { label ->
             row.addView(chip(label, label == selectedMarketDetailTab).apply {
                 setOnClickListener {
+                    if (label == selectedMarketDetailTab) return@setOnClickListener
                     performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     selectedMarketDetailTab = label
-                    openMarketDetail(asset)
+                    openMarketDetail(asset, refreshData = false)
                 }
             })
         }
@@ -559,7 +562,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun LinearLayout.addNewsTab(asset: MarketAsset) {
-        if (newsArticles.isEmpty()) loadNews { if (activeMarketSymbol == asset.symbol) openMarketDetail(asset) }
+        if (newsArticles.isEmpty()) loadNews { if (activeMarketSymbol == asset.symbol) openMarketDetail(asset, refreshData = false) }
         val related = newsArticles.filter {
             it.title.contains(asset.symbol, ignoreCase = true) ||
                 it.title.contains(asset.name, ignoreCase = true) ||
@@ -619,7 +622,7 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener {
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                 marketDetailExpanded = !marketDetailExpanded
-                openMarketDetail(asset)
+                openMarketDetail(asset, refreshData = false)
             }
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(34)))
     }
@@ -727,7 +730,7 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 0, 0, dp(8))
-            addView(iconButton("Kembali", "‹").apply { setOnClickListener { renderMarket() } }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(10) })
+            addView(detailToolbarButton("Kembali", "←") { renderMarket() }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(10) })
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(text(asset.symbol, 20f, R.color.marketedge_text_primary, Typeface.BOLD))
@@ -736,11 +739,11 @@ class MainActivity : AppCompatActivity() {
                     ellipsize = TextUtils.TruncateAt.END
                 })
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(iconButton("Cari", "⌕").apply {
-                setOnClickListener { renderSearch { openMarketDetail(asset) } }
+            addView(detailToolbarButton("Cari", "⌕") {
+                renderSearch { openMarketDetail(asset, refreshData = false) }
             }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(6) })
-            addView(iconButton("Tanyakan AI", "♧").apply {
-                setOnClickListener { askAiAboutAsset(asset) }
+            addView(detailToolbarButton("Tanyakan AI", "AI") {
+                askAiAboutAsset(asset)
             }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(6) })
             addView(text(if (isInWatchlist(asset)) "★" else "☆", 25f, if (isInWatchlist(asset)) R.color.marketedge_accent else R.color.marketedge_text_muted, Typeface.BOLD).apply {
                 gravity = Gravity.CENTER
@@ -748,10 +751,22 @@ class MainActivity : AppCompatActivity() {
                 background = rounded(R.color.marketedge_card, 18)
                 setOnClickListener {
                     toggleWatchlist(asset)
-                    openMarketDetail(asset)
+                    openMarketDetail(asset, refreshData = false)
                 }
             }, LinearLayout.LayoutParams(dp(38), dp(38)))
     }
+
+    private fun detailToolbarButton(label: String, symbol: String, onClick: () -> Unit): TextView =
+        text(symbol, if (symbol.length <= 1) 18f else 12f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+            contentDescription = label
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+            background = rounded(R.color.marketedge_card_soft, 12, R.color.marketedge_hairline)
+            setOnClickListener {
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                onClick()
+            }
+        }
 
     private fun renderNews() {
         syncBottomNav(R.id.nav_news)
