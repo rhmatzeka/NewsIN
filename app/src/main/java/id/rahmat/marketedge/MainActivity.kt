@@ -84,6 +84,7 @@ class MainActivity : AppCompatActivity() {
     private var marketAssets = emptyList<MarketAsset>()
     private var newsArticles = emptyList<NewsArticle>()
     private val watchlistSymbols = linkedSetOf("BTC", "ETH", "SOL")
+    private val savedArticleIds = linkedSetOf<String>()
     private var watchlistEditMode = false
     private var marketLoading = false
     private var newsLoading = false
@@ -863,7 +864,17 @@ class MainActivity : AppCompatActivity() {
     private fun featuredNews(article: NewsArticle): View = card().apply {
         addView(articleImage(article, 172))
         addGap(12)
-        addView(text(article.title, 20f, R.color.marketedge_text_primary, Typeface.BOLD))
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(text(article.title, 20f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+                maxLines = 3
+                ellipsize = TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(newsBookmarkButton(article) { renderNews() }, LinearLayout.LayoutParams(dp(38), dp(38)).apply {
+                marginStart = dp(8)
+            })
+        })
         addGap(8)
         addView(text("${article.source} • ${article.timeAgo}", 12f, R.color.marketedge_text_muted))
         addGap(10)
@@ -884,7 +895,10 @@ class MainActivity : AppCompatActivity() {
         row.addView(articleImage(article, 84, compact = true), LinearLayout.LayoutParams(dp(92), dp(84)).apply { marginEnd = dp(12) })
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(text(article.title, 15f, R.color.marketedge_text_primary, Typeface.BOLD))
+            addView(text(article.title, 15f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+                maxLines = 2
+                ellipsize = TextUtils.TruncateAt.END
+            })
             addView(text("${article.source} • ${article.timeAgo}", 12f, R.color.marketedge_text_muted))
             addGap(6)
             addTagRow(article)
@@ -892,6 +906,9 @@ class MainActivity : AppCompatActivity() {
             addView(secondaryActionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(34)))
         }
         row.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(newsBookmarkButton(article) { renderNews() }, LinearLayout.LayoutParams(dp(36), dp(36)).apply {
+            marginStart = dp(8)
+        })
         return row
     }
 
@@ -910,13 +927,32 @@ class MainActivity : AppCompatActivity() {
         background = rounded(R.color.marketedge_accent, 12)
     }
 
+    private fun newsBookmarkButton(article: NewsArticle, onChanged: () -> Unit): TextView =
+        text(if (isSavedArticle(article)) "★" else "☆", 23f, if (isSavedArticle(article)) R.color.marketedge_accent else R.color.marketedge_text_muted, Typeface.BOLD).apply {
+            gravity = Gravity.CENTER
+            contentDescription = if (isSavedArticle(article)) "Hapus dari Watchlist" else "Simpan ke Watchlist"
+            background = rounded(R.color.marketedge_card_soft, 12, R.color.marketedge_hairline)
+            setOnClickListener {
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                toggleSavedArticle(article)
+                onChanged()
+            }
+        }
+
     private fun openNewsDetail(article: NewsArticle) {
         requestFullArticle(article)
         val screen = screenScroll()
         screen.addView(backBar("Berita") { renderNews() })
         screen.addView(articleImage(article, 210))
         screen.addGap(14)
-        screen.addView(text(article.title, 24f, R.color.marketedge_text_primary, Typeface.BOLD))
+        screen.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.TOP
+            addView(text(article.title, 24f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(newsBookmarkButton(article) { openNewsDetail(article) }, LinearLayout.LayoutParams(dp(40), dp(40)).apply {
+                marginStart = dp(10)
+            })
+        })
         screen.addGap(8)
         screen.addView(text("${article.source} • ${article.timeAgo}", 13f, R.color.marketedge_text_muted))
         screen.addGap(12)
@@ -1251,9 +1287,16 @@ class MainActivity : AppCompatActivity() {
         setPadding(dp(10), dp(10), dp(10), dp(10))
         addView(articleImage(article, 72), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(72)))
         addGap(8)
-        addView(text(article.title, 13f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
-            maxLines = 2
-            ellipsize = TextUtils.TruncateAt.END
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.TOP
+            addView(text(article.title, 13f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+                maxLines = 2
+                ellipsize = TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(newsBookmarkButton(article) { renderIdeas() }, LinearLayout.LayoutParams(dp(30), dp(30)).apply {
+                marginStart = dp(6)
+            })
         })
         addGap(4)
         addView(text("${article.source} • ${article.category}", 10f, R.color.marketedge_text_muted).apply {
@@ -1262,7 +1305,7 @@ class MainActivity : AppCompatActivity() {
         })
         addView(Space(context), LinearLayout.LayoutParams(1, 0, 1f))
         addView(actionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(34)))
-        setOnClickListener { askAiAboutNews(article) }
+        setOnClickListener { openNewsDetail(article) }
     }
 
     private fun aiAssetRail(): HorizontalScrollView {
@@ -1408,18 +1451,28 @@ class MainActivity : AppCompatActivity() {
         screen.addView(actionButton("Tambah Aset ke Watchlist") { renderWatchlistPicker() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
         screen.addGap(16)
         if (newsArticles.isEmpty()) {
-            screen.addView(sectionHeader("Berita terbaru", "memuat"))
+            screen.addView(sectionHeader("Berita tersimpan", "memuat"))
             screen.addGap(8)
             screen.addView(loadingCard("Memuat berita untuk watchlist..."))
             loadNews { renderWatchlist() }
         } else {
-            val watched = watchlistAssets()
-            val articles = watchlistNewsArticles(watched)
-            screen.addView(sectionHeader("Berita terbaru", "${articles.size} headline"))
+            val saved = savedNewsArticles()
+            screen.addView(sectionHeader("Berita tersimpan", "${saved.size} disimpan"))
             screen.addGap(8)
-            articles.forEach {
-                screen.addView(watchlistNewsItem(it))
+            if (saved.isEmpty()) {
+                screen.addView(emptySavedNewsCard())
                 screen.addGap(8)
+                screen.addView(sectionHeader("Rekomendasi berita", "tap bintang untuk simpan"))
+                screen.addGap(8)
+                watchlistNewsArticles(watchlistAssets()).take(3).forEach {
+                    screen.addView(watchlistNewsItem(it, savedMode = false))
+                    screen.addGap(8)
+                }
+            } else {
+                saved.forEach {
+                    screen.addView(watchlistNewsItem(it, savedMode = true))
+                    screen.addGap(8)
+                }
             }
         }
         displayScroll(screen)
@@ -1461,6 +1514,12 @@ class MainActivity : AppCompatActivity() {
         addView(text("Tekan tombol + atau buka detail market lalu tekan bintang untuk menambahkan aset.", 13f, R.color.marketedge_text_secondary))
     }
 
+    private fun emptySavedNewsCard(): View = card().apply {
+        addView(text("Belum ada berita tersimpan", 16f, R.color.marketedge_text_primary, Typeface.BOLD))
+        addGap(5)
+        addView(text("Tekan bintang di kartu berita untuk menyimpannya ke Watchlist.", 12f, R.color.marketedge_text_secondary))
+    }
+
     private fun watchlistAssetItem(asset: MarketAsset): View =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1488,6 +1547,9 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
+    private fun savedNewsArticles(): List<NewsArticle> =
+        savedArticleIds.mapNotNull { id -> newsArticles.firstOrNull { it.id == id } }
+
     private fun watchlistNewsArticles(assets: List<MarketAsset>): List<NewsArticle> {
         val symbols = assets.flatMap { listOf(it.symbol, it.name) }
             .filter { it.isNotBlank() }
@@ -1500,7 +1562,7 @@ class MainActivity : AppCompatActivity() {
         return related.ifEmpty { newsArticles }.take(4)
     }
 
-    private fun watchlistNewsItem(article: NewsArticle): View =
+    private fun watchlistNewsItem(article: NewsArticle, savedMode: Boolean = true): View =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -1522,10 +1584,15 @@ class MainActivity : AppCompatActivity() {
                     ellipsize = TextUtils.TruncateAt.END
                 })
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(text("Baca", 11f, R.color.marketedge_accent, Typeface.BOLD).apply {
+            addView(text(if (savedMode) "★" else "☆", 18f, if (isSavedArticle(article)) R.color.marketedge_accent else R.color.marketedge_text_muted, Typeface.BOLD).apply {
                 gravity = Gravity.CENTER
                 setPadding(dp(8), dp(5), dp(8), dp(5))
                 background = rounded(R.color.marketedge_card_soft, 8, R.color.marketedge_hairline)
+                setOnClickListener {
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    toggleSavedArticle(article)
+                    renderWatchlist()
+                }
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)).apply {
                 marginStart = dp(8)
             })
@@ -1576,6 +1643,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun toggleWatchlist(asset: MarketAsset) {
         if (!watchlistSymbols.add(asset.symbol)) watchlistSymbols.remove(asset.symbol)
+    }
+
+    private fun isSavedArticle(article: NewsArticle): Boolean = savedArticleIds.contains(article.id)
+
+    private fun toggleSavedArticle(article: NewsArticle) {
+        if (!savedArticleIds.add(article.id)) savedArticleIds.remove(article.id)
     }
 
     private fun toolbarWithActions(title: String, first: String, second: String): LinearLayout =
