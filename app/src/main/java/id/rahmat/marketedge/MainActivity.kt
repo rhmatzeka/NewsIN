@@ -730,7 +730,7 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 0, 0, dp(8))
-            addView(detailToolbarButton("Kembali", "←") { renderMarket() }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(10) })
+            addView(drawableToolbarButton("Kembali", R.drawable.ic_back) { renderMarket() }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(10) })
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(text(asset.symbol, 20f, R.color.marketedge_text_primary, Typeface.BOLD))
@@ -761,6 +761,19 @@ class MainActivity : AppCompatActivity() {
             contentDescription = label
             gravity = Gravity.CENTER
             includeFontPadding = false
+            background = rounded(R.color.marketedge_card_soft, 12, R.color.marketedge_hairline)
+            setOnClickListener {
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                onClick()
+            }
+        }
+
+    private fun drawableToolbarButton(label: String, drawableRes: Int, onClick: () -> Unit): ImageView =
+        ImageView(this).apply {
+            contentDescription = label
+            setImageResource(drawableRes)
+            setColorFilter(getColor(R.color.marketedge_text_primary))
+            setPadding(dp(9), dp(9), dp(9), dp(9))
             background = rounded(R.color.marketedge_card_soft, 12, R.color.marketedge_hairline)
             setOnClickListener {
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
@@ -1393,6 +1406,22 @@ class MainActivity : AppCompatActivity() {
         }
         screen.addGap(4)
         screen.addView(actionButton("Tambah Aset ke Watchlist") { renderWatchlistPicker() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
+        screen.addGap(16)
+        if (newsArticles.isEmpty()) {
+            screen.addView(sectionHeader("Berita terbaru", "memuat"))
+            screen.addGap(8)
+            screen.addView(loadingCard("Memuat berita untuk watchlist..."))
+            loadNews { renderWatchlist() }
+        } else {
+            val watched = watchlistAssets()
+            val articles = watchlistNewsArticles(watched)
+            screen.addView(sectionHeader("Berita terbaru", "${articles.size} headline"))
+            screen.addGap(8)
+            articles.forEach {
+                screen.addView(watchlistNewsItem(it))
+                screen.addGap(8)
+            }
+        }
         displayScroll(screen)
     }
 
@@ -1456,6 +1485,49 @@ class MainActivity : AppCompatActivity() {
                         renderWatchlist()
                     }, LinearLayout.LayoutParams(dp(72), dp(34)))
                 }
+            })
+        }
+
+    private fun watchlistNewsArticles(assets: List<MarketAsset>): List<NewsArticle> {
+        val symbols = assets.flatMap { listOf(it.symbol, it.name) }
+            .filter { it.isNotBlank() }
+        val related = newsArticles.filter { article ->
+            symbols.any { key ->
+                article.title.contains(key, ignoreCase = true) ||
+                    article.summary.contains(key, ignoreCase = true)
+            }
+        }
+        return related.ifEmpty { newsArticles }.take(4)
+    }
+
+    private fun watchlistNewsItem(article: NewsArticle): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
+            setOnClickListener { openNewsDetail(article) }
+            addView(articleImage(article, 54, compact = true), LinearLayout.LayoutParams(dp(64), dp(54)).apply {
+                marginEnd = dp(10)
+            })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(text(article.title, 13f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+                    maxLines = 2
+                    ellipsize = TextUtils.TruncateAt.END
+                })
+                addGap(3)
+                addView(text("${article.source} • ${article.timeAgo}", 10f, R.color.marketedge_text_muted).apply {
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                })
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text("Baca", 11f, R.color.marketedge_accent, Typeface.BOLD).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(5), dp(8), dp(5))
+                background = rounded(R.color.marketedge_card_soft, 8, R.color.marketedge_hairline)
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(30)).apply {
+                marginStart = dp(8)
             })
         }
 
@@ -1774,7 +1846,7 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 0, 0, dp(12))
-            addView(iconButton("Kembali", "‹").apply { setOnClickListener { onBack() } }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginEnd = dp(10) })
+            addView(drawableToolbarButton("Kembali", R.drawable.ic_back) { onBack() }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(10) })
             addView(text(title, 22f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
 
