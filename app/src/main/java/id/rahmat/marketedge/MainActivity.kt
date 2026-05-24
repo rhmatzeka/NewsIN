@@ -365,45 +365,20 @@ class MainActivity : AppCompatActivity() {
         bottomNav.visibility = View.VISIBLE
         val screen = screenScroll()
         screen.addView(marketDetailBar(asset))
+        screen.addGap(8)
+        screen.addView(marketDetailQuoteCard(asset))
         screen.addGap(10)
-        screen.addView(text(asset.name, 17f, R.color.marketedge_text_muted, Typeface.BOLD))
-        screen.addGap(4)
-        screen.addView(text(asset.price, 38f, R.color.marketedge_text_primary, Typeface.BOLD))
-        screen.addView(text("${asset.changeValue} (${formatPercent(asset.changePercent)})", 18f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD))
-        screen.addGap(4)
-        screen.addView(text("${asset.updatedAt} - Market feed", 14f, R.color.marketedge_text_muted))
-        screen.addGap(18)
         screen.addView(marketDetailTabs(asset))
-        screen.addGap(10)
-        screen.addView(LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            addView(TextView(context).apply {
-                text = "↗"
-                gravity = Gravity.CENTER
-                setTextColor(getColor(R.color.marketedge_text_muted))
-                textSize = 22f
-                background = rounded(R.color.marketedge_card, 28, R.color.marketedge_hairline)
-            }, LinearLayout.LayoutParams(dp(58), dp(58)))
-            addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
-            addView(text("▣ Analisis grafik", 15f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
-                gravity = Gravity.CENTER
-                setPadding(dp(14), dp(10), dp(14), dp(10))
-                background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
-            })
-        })
-        screen.addGap(12)
+        screen.addGap(4)
         val chartKey = marketChartKey(asset)
         val chartData = marketChartCache[chartKey] ?: asset.sparkline
+        screen.addView(marketChartToolbar(asset, chartKey))
+        screen.addGap(8)
         screen.addView(FrameLayout(this).apply {
             background = rounded(R.color.marketedge_background, 0)
             addView(SparklineView(context).apply {
                 submit(chartData.ifEmpty { listOf(1f, 1.2f, 1.1f, 1.4f, 1.3f) }, asset.isPositive, largeChart = true)
             }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-            addView(text(selectedMarketChartRange, 12f, R.color.marketedge_text_muted, Typeface.BOLD).apply {
-                setPadding(dp(8), dp(4), dp(8), dp(4))
-                background = rounded(R.color.marketedge_card, 4, R.color.marketedge_hairline)
-            }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.START or Gravity.TOP))
             addView(text(asset.price, 13f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
                 setPadding(dp(8), dp(4), dp(8), dp(4))
                 background = rounded(R.color.marketedge_card, 4, R.color.marketedge_hairline)
@@ -418,8 +393,8 @@ class MainActivity : AppCompatActivity() {
                     background = rounded(R.color.marketedge_card, 4, R.color.marketedge_hairline)
                 }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.TOP))
             }
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(260)))
-        screen.addGap(14)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(190)))
+        screen.addGap(6)
         screen.addView(marketChartRangeChips(asset))
         activeMarketChartKey = chartKey
         loadMarketChart(asset) {
@@ -432,6 +407,61 @@ class MainActivity : AppCompatActivity() {
         screen.addView(marketDetailTabContent(asset))
         displayScroll(screen)
     }
+
+    private fun marketDetailQuoteCard(asset: MarketAsset): View = card().apply {
+        setPadding(dp(12), dp(10), dp(12), dp(10))
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        row.addView(LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(text(asset.name, 13f, R.color.marketedge_text_muted, Typeface.BOLD).apply {
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            })
+            addGap(3)
+            addView(text(asset.price, 28f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            })
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.END
+            addView(text(formatPercent(asset.changePercent), 18f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD).apply {
+                gravity = Gravity.END
+            })
+            addGap(3)
+            addView(text(asset.changeValue, 13f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD).apply {
+                gravity = Gravity.END
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            })
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 0.78f))
+        addView(row)
+        addGap(6)
+        addView(text("${asset.updatedAt} - ${asset.source.ifBlank { "Market feed" }}", 11f, R.color.marketedge_text_muted))
+    }
+
+    private fun marketChartToolbar(asset: MarketAsset, chartKey: String): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(text(selectedMarketChartRange, 12f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(10), dp(7), dp(10), dp(7))
+                background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
+                setOnClickListener { cycleMarketChartRange(asset) }
+            })
+            addView(text(if (marketChartLoading[chartKey] == true) "Memperbarui..." else "Grafik harga", 12f, R.color.marketedge_text_muted, Typeface.BOLD).apply {
+                setPadding(dp(10), 0, dp(10), 0)
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(secondaryActionButton("Teknikal") {
+                selectedMarketDetailTab = "Teknikal"
+                openMarketDetail(asset)
+            }, LinearLayout.LayoutParams(dp(92), dp(34)))
+        }
 
     private fun marketDetailTabs(asset: MarketAsset): HorizontalScrollView {
         val labels = listOf("Ikhtisar", "Teknikal", "Berita", "Analisis", "Data")
@@ -468,8 +498,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun LinearLayout.addOverviewTab(asset: MarketAsset) {
         val stats = marketDetailStats(asset)
+        addView(detailStatsCard(asset, stats))
+    }
+
+    private fun detailStatsCard(asset: MarketAsset, stats: MarketDetailStats?): View = card().apply {
+        setPadding(dp(12), dp(10), dp(12), dp(10))
         addDetailStatRows(stats)
-        addGap(16)
+        addGap(8)
         addMoreButton(asset)
     }
 
@@ -573,19 +608,20 @@ class MainActivity : AppCompatActivity() {
             addView(text("${asset.unit.ifBlank { asset.symbol }} • ${asset.updatedAt}", 13f, R.color.marketedge_text_muted))
         })
         addGap(12)
-        addDetailStatRows(stats)
-        addGap(16)
-        addMoreButton(asset)
+        addView(detailStatsCard(asset, stats))
     }
 
     private fun LinearLayout.addMoreButton(asset: MarketAsset) {
-        addView(text(if (marketDetailExpanded) "SEMBUNYIKAN DATA ^" else "TAMPILKAN LEBIH BANYAK v", 16f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
-            setPadding(dp(6), dp(10), dp(6), dp(10))
+        addView(text(if (marketDetailExpanded) "Sembunyikan detail" else "Tampilkan data lainnya", 13f, R.color.marketedge_accent, Typeface.BOLD).apply {
+            gravity = Gravity.CENTER
+            setPadding(dp(10), dp(7), dp(10), dp(7))
+            background = rounded(R.color.marketedge_card_soft, 8, R.color.marketedge_hairline)
             setOnClickListener {
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                 marketDetailExpanded = !marketDetailExpanded
                 openMarketDetail(asset)
             }
-        })
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(34)))
     }
 
     private fun detailValue(stats: MarketDetailStats?, value: (MarketDetailStats) -> String): String =
@@ -626,6 +662,14 @@ class MainActivity : AppCompatActivity() {
             isHorizontalScrollBarEnabled = false
             addView(row)
         }
+    }
+
+    private fun cycleMarketChartRange(asset: MarketAsset) {
+        val labels = listOf("1Hr", "1Mgg", "1Bln", "1Thn", "5Thn", "Maks")
+        val next = (labels.indexOf(selectedMarketChartRange).takeIf { it >= 0 } ?: 0) + 1
+        selectedMarketChartRange = labels[next % labels.size]
+        if (::bottomNav.isInitialized) bottomNav.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        openMarketDetail(asset)
     }
 
     private fun marketChartKey(asset: MarketAsset): String =
@@ -683,22 +727,30 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 0, 0, dp(8))
-            addView(iconButton("Kembali", "‹").apply { setOnClickListener { renderMarket() } }, LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(10) })
+            addView(iconButton("Kembali", "‹").apply { setOnClickListener { renderMarket() } }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(10) })
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                addView(text(asset.symbol, 23f, R.color.marketedge_text_primary, Typeface.BOLD))
-                addView(text(asset.unit.ifBlank { asset.source }, 12f, R.color.marketedge_text_muted))
+                addView(text(asset.symbol, 20f, R.color.marketedge_text_primary, Typeface.BOLD))
+                addView(text(asset.unit.ifBlank { asset.source }, 11f, R.color.marketedge_text_muted).apply {
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                })
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(iconButton("Cari", "⌕"), LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(8) })
-            addView(iconButton("Peringatan", "♧"), LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(8) })
-            addView(text(if (isInWatchlist(asset)) "★" else "☆", 28f, if (isInWatchlist(asset)) R.color.marketedge_accent else R.color.marketedge_text_muted, Typeface.BOLD).apply {
+            addView(iconButton("Cari", "⌕").apply {
+                setOnClickListener { renderSearch { openMarketDetail(asset) } }
+            }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(6) })
+            addView(iconButton("Tanyakan AI", "♧").apply {
+                setOnClickListener { askAiAboutAsset(asset) }
+            }, LinearLayout.LayoutParams(dp(38), dp(38)).apply { marginEnd = dp(6) })
+            addView(text(if (isInWatchlist(asset)) "★" else "☆", 25f, if (isInWatchlist(asset)) R.color.marketedge_accent else R.color.marketedge_text_muted, Typeface.BOLD).apply {
                 gravity = Gravity.CENTER
                 contentDescription = "Watchlist"
+                background = rounded(R.color.marketedge_card, 18)
                 setOnClickListener {
                     toggleWatchlist(asset)
                     openMarketDetail(asset)
                 }
-            }, LinearLayout.LayoutParams(dp(42), dp(42)))
+            }, LinearLayout.LayoutParams(dp(38), dp(38)))
     }
 
     private fun renderNews() {
@@ -1156,7 +1208,7 @@ class MainActivity : AppCompatActivity() {
             row.addView(infoCard("Berita sedang dimuat."))
         } else {
             articles.forEach { article ->
-                row.addView(aiNewsContextCard(article), LinearLayout.LayoutParams(dp(206), dp(176)).apply {
+                row.addView(aiNewsContextCard(article), LinearLayout.LayoutParams(dp(206), dp(188)).apply {
                     marginEnd = dp(10)
                 })
             }
@@ -1168,9 +1220,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun aiNewsContextCard(article: NewsArticle): View = card().apply {
-        setPadding(dp(12), dp(12), dp(12), dp(12))
-        addView(articleImage(article, 74), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(74)))
-        addGap(10)
+        setPadding(dp(10), dp(10), dp(10), dp(10))
+        addView(articleImage(article, 72), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(72)))
+        addGap(8)
         addView(text(article.title, 13f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
             maxLines = 2
             ellipsize = TextUtils.TruncateAt.END
@@ -1181,7 +1233,7 @@ class MainActivity : AppCompatActivity() {
             ellipsize = TextUtils.TruncateAt.END
         })
         addView(Space(context), LinearLayout.LayoutParams(1, 0, 1f))
-        addView(actionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)))
+        addView(actionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(34)))
         setOnClickListener { askAiAboutNews(article) }
     }
 
@@ -1195,7 +1247,7 @@ class MainActivity : AppCompatActivity() {
             row.addView(infoCard("Aset sedang dimuat."))
         } else {
             assets.forEach { asset ->
-                row.addView(aiAssetContextCard(asset), LinearLayout.LayoutParams(dp(144), dp(134)).apply {
+                row.addView(aiAssetContextCard(asset), LinearLayout.LayoutParams(dp(144), dp(144)).apply {
                     marginEnd = dp(10)
                 })
             }
@@ -1207,7 +1259,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun aiAssetContextCard(asset: MarketAsset): View = card().apply {
-        setPadding(dp(12), dp(12), dp(12), dp(12))
+        setPadding(dp(10), dp(10), dp(10), dp(10))
         addView(text(asset.symbol, 21f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
@@ -1224,7 +1276,7 @@ class MainActivity : AppCompatActivity() {
         })
         addView(text(formatPercent(asset.changePercent), 16f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD))
         addView(Space(context), LinearLayout.LayoutParams(1, 0, 1f))
-        addView(actionButton("Tanyakan") { askAiAboutAsset(asset) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)))
+        addView(actionButton("Tanyakan") { askAiAboutAsset(asset) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(34)))
         setOnClickListener { askAiAboutAsset(asset) }
     }
 
@@ -1723,8 +1775,8 @@ class MainActivity : AppCompatActivity() {
     private fun detailDivider(): View = View(this).apply {
         setBackgroundColor(getColor(R.color.marketedge_hairline))
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)).apply {
-            topMargin = dp(8)
-            bottomMargin = dp(8)
+            topMargin = dp(5)
+            bottomMargin = dp(5)
         }
     }
 
@@ -1732,11 +1784,12 @@ class MainActivity : AppCompatActivity() {
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(4), 0, dp(4))
-            addView(text(label, 18f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(text(value, 18f, R.color.marketedge_text_primary).apply {
+            setPadding(0, dp(1), 0, dp(1))
+            addView(text(label, 14f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(value, 14f, R.color.marketedge_text_primary).apply {
                 gravity = Gravity.END
                 maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
 
