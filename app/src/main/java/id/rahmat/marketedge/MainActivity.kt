@@ -314,7 +314,8 @@ class MainActivity : AppCompatActivity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(12), dp(12), dp(12))
+            minimumHeight = dp(54)
+            setPadding(dp(12), dp(7), dp(10), dp(7))
             background = rounded(R.color.marketedge_surface, 0)
             setOnClickListener {
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
@@ -323,28 +324,34 @@ class MainActivity : AppCompatActivity() {
         }
         val left = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(text(asset.name, 20f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+            addView(text(asset.name, 16f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
                 maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
             })
-            addGap(4)
+            addGap(2)
             val meta = if (asset.unit.isNotBlank()) "${asset.updatedAt} | ${asset.unit}" else "${asset.updatedAt} | ${asset.symbol}"
-            addView(text(meta, 14f, R.color.marketedge_text_muted))
+            addView(text(meta, 11f, R.color.marketedge_text_muted).apply {
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            })
         }
         val right = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.END
-            addView(text(asset.price, 22f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+            addView(text(asset.price, 18f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
                 gravity = Gravity.END
                 maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
             })
-            addGap(4)
-            addView(text("${asset.changeValue} (${formatPercent(asset.changePercent)})", 15f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD).apply {
+            addGap(2)
+            addView(text("${asset.changeValue} (${formatPercent(asset.changePercent)})", 12f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD).apply {
                 gravity = Gravity.END
                 maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
             })
         }
-        row.addView(left, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.15f))
-        row.addView(right, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 0.85f))
+        row.addView(left, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.25f))
+        row.addView(right, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 0.75f))
         return row
     }
 
