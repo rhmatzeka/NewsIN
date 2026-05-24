@@ -83,6 +83,9 @@ class MainActivity : AppCompatActivity() {
     private val chatMessages = mutableListOf<ChatMessage>()
     private var activeAiSurface = AiSurface.PAGE
     private var pendingIdeasChatScroll = false
+    private var currentUserName: String? = null
+    private var currentUserEmail: String? = null
+    private var isSubscribed = false
     private var marketAssets = emptyList<MarketAsset>()
     private var newsArticles = emptyList<NewsArticle>()
     private val watchlistSymbols = linkedSetOf("BTC", "ETH", "SOL")
@@ -829,6 +832,17 @@ class MainActivity : AppCompatActivity() {
         setTopLevelScreen(R.id.nav_news)
         val screen = screenScroll()
         screen.addView(topBar("Berita") { renderSearch { renderNews() } })
+        if (!hasPremiumAccess()) {
+            screen.addView(premiumGateCard(
+                title = "Masuk untuk Berita Terbaru",
+                message = "Headline terbaru, detail artikel, bookmark berita, dan tanya AI adalah fitur berlangganan MarketEdge Pro.",
+                from = AuthEntry.NEWS
+            ))
+            screen.addGap(12)
+            screen.addView(newsPreviewCard())
+            displayScroll(screen)
+            return
+        }
         screen.addView(newsCategoryChips())
         when {
             newsLoading -> {
@@ -983,9 +997,13 @@ class MainActivity : AppCompatActivity() {
                 toggleSavedArticle(article)
                 onChanged()
             }
-        }
+    }
 
     private fun openNewsDetail(article: NewsArticle, onBack: () -> Unit = { renderNews() }) {
+        if (!hasPremiumAccess()) {
+            renderAuth(AuthEntry.NEWS)
+            return
+        }
         activeArticleId = article.id
         currentArticleBackAction = onBack
         setChildBack(onBack)
@@ -1240,6 +1258,17 @@ class MainActivity : AppCompatActivity() {
         val pick = repository.aiPick()
         val screen = screenScroll()
         screen.addView(topBar("AI") { renderSearch() })
+        if (!hasPremiumAccess()) {
+            screen.addView(premiumGateCard(
+                title = "WarrenAI untuk Member Pro",
+                message = "Masuk dan aktifkan langganan untuk memakai analisis AI, tanya berita, dan ringkasan aset berbasis data terbaru.",
+                from = AuthEntry.AI
+            ))
+            screen.addGap(12)
+            screen.addView(aiPreviewCard())
+            displayScroll(screen)
+            return
+        }
         if (chatMessages.isEmpty()) chatMessages.addAll(repository.initialChat())
         if (marketAssets.isEmpty()) loadMarkets { renderIdeas() }
         if (newsArticles.isEmpty()) loadNews { renderIdeas() }
@@ -1793,30 +1822,40 @@ class MainActivity : AppCompatActivity() {
     private fun profileCard(): View = card().apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
+        val loggedIn = isLoggedIn()
+        val initial = currentUserName?.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
         addView(TextView(context).apply {
-            text = "R"
+            text = initial
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
             textSize = 22f
             typeface = Typeface.DEFAULT_BOLD
-            background = rounded(R.color.marketedge_accent, 28)
+            background = rounded(if (loggedIn) R.color.marketedge_accent else R.color.marketedge_card_soft, 28, if (loggedIn) null else R.color.marketedge_hairline)
         }, LinearLayout.LayoutParams(dp(56), dp(56)).apply { marginEnd = dp(12) })
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            addView(text("Rahmat", 18f, R.color.marketedge_text_primary, Typeface.BOLD))
-            addView(text("rahmat@marketedge.local", 13f, R.color.marketedge_text_muted))
+            addView(text(currentUserName ?: "Masuk atau daftar", 18f, R.color.marketedge_text_primary, Typeface.BOLD))
+            addView(text(currentUserEmail ?: "Buat akun untuk langganan Pro", 13f, R.color.marketedge_text_muted))
+            if (loggedIn) {
+                addGap(5)
+                addView(text(if (isSubscribed) "MarketEdge Pro aktif" else "Belum berlangganan", 12f, if (isSubscribed) R.color.marketedge_accent else R.color.marketedge_text_muted, Typeface.BOLD))
+            }
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         addView(text("›", 26f, R.color.marketedge_text_muted))
         setOnClickListener {
             performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            renderProfile()
+            if (loggedIn) renderProfile() else renderAuth(AuthEntry.MORE)
         }
     }
 
     private fun upgradeBanner(): View = card().apply {
         background = roundedRaw(Color.rgb(255, 107, 0), 8)
-        addView(text("InvestingPro", 18f, R.color.white, Typeface.BOLD))
-        addView(text("Diskon 45% untuk data premium, valuasi, dan sinyal AI.", 13f, R.color.white))
+        addView(text(if (isSubscribed) "MarketEdge Pro Aktif" else "MarketEdge Pro", 18f, R.color.white, Typeface.BOLD))
+        addView(text(if (isSubscribed) "Berita terbaru dan WarrenAI sudah terbuka untuk akun ini." else "Langganan untuk membuka berita terbaru, WarrenAI, alert premium, dan pengalaman bebas iklan.", 13f, R.color.white))
+        setOnClickListener {
+            performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            if (isLoggedIn()) renderSubscription(AuthEntry.MORE) else renderAuth(AuthEntry.MORE)
+        }
     }
 
     private fun quickGrid(): View {
@@ -1875,17 +1914,21 @@ class MainActivity : AppCompatActivity() {
         }
 
     private fun renderProfile() {
+        if (!isLoggedIn()) {
+            renderAuth(AuthEntry.MORE)
+            return
+        }
         val screen = moreChildScreen("Profil")
         screen.addView(profileHero())
         screen.addGap(14)
         screen.addView(sectionHeader("Akun"))
         screen.addGap(8)
         screen.addView(card().apply {
-            addView(statRow("Nama", "Rahmat"))
+            addView(statRow("Nama", currentUserName.orEmpty()))
             addGap(8)
-            addView(statRow("Email", "rahmat@marketedge.local"))
+            addView(statRow("Email", currentUserEmail.orEmpty()))
             addGap(8)
-            addView(statRow("Status", "MarketEdge Basic"))
+            addView(statRow("Status", if (isSubscribed) "MarketEdge Pro" else "MarketEdge Basic"))
             addGap(8)
             addView(statRow("Watchlist", "${watchlistSymbols.size} aset"))
         })
@@ -1902,7 +1945,16 @@ class MainActivity : AppCompatActivity() {
         screen.addGap(14)
         screen.addView(actionButton("Kelola Watchlist") { renderWatchlist() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)))
         screen.addGap(10)
-        screen.addView(secondaryActionButton("Buka WarrenAI") { renderAiChat() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
+        screen.addView(secondaryActionButton(if (isSubscribed) "Buka WarrenAI" else "Aktifkan Langganan") {
+            if (isSubscribed) renderAiChat() else renderSubscription(AuthEntry.MORE)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
+        screen.addGap(10)
+        screen.addView(secondaryActionButton("Keluar") {
+            currentUserName = null
+            currentUserEmail = null
+            isSubscribed = false
+            renderMore()
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
         displayScroll(screen)
     }
 
@@ -1911,7 +1963,7 @@ class MainActivity : AppCompatActivity() {
         gravity = Gravity.CENTER_VERTICAL
         setPadding(dp(14), dp(14), dp(14), dp(14))
         addView(TextView(context).apply {
-            text = "R"
+            text = currentUserName?.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
             textSize = 28f
@@ -1920,11 +1972,11 @@ class MainActivity : AppCompatActivity() {
         }, LinearLayout.LayoutParams(dp(68), dp(68)).apply { marginEnd = dp(14) })
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            addView(text("Rahmat", 22f, R.color.marketedge_text_primary, Typeface.BOLD))
+            addView(text(currentUserName.orEmpty(), 22f, R.color.marketedge_text_primary, Typeface.BOLD))
             addGap(2)
-            addView(text("rahmat@marketedge.local", 12f, R.color.marketedge_text_muted))
+            addView(text(currentUserEmail.orEmpty(), 12f, R.color.marketedge_text_muted))
             addGap(8)
-            addView(text("Basic • ${watchlistSymbols.size} aset dipantau", 12f, R.color.marketedge_accent, Typeface.BOLD))
+            addView(text("${if (isSubscribed) "Pro" else "Basic"} • ${watchlistSymbols.size} aset dipantau", 12f, R.color.marketedge_accent, Typeface.BOLD))
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
     }
 
@@ -2018,7 +2070,9 @@ class MainActivity : AppCompatActivity() {
             screen.addGap(8)
         }
         screen.addGap(6)
-        screen.addView(actionButton("Aktifkan Versi Bebas Iklan") { it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)))
+        screen.addView(actionButton("Aktifkan Versi Bebas Iklan") {
+            if (isLoggedIn()) renderSubscription(AuthEntry.MORE) else renderAuth(AuthEntry.MORE)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)))
     }
 
     private fun renderQuickDetail(label: String) {
@@ -2113,7 +2167,163 @@ class MainActivity : AppCompatActivity() {
         else -> R.color.marketedge_accent
     }
 
+    private fun isLoggedIn(): Boolean = !currentUserEmail.isNullOrBlank()
+
+    private fun hasPremiumAccess(): Boolean = isLoggedIn() && isSubscribed
+
+    private fun renderAuth(from: AuthEntry = AuthEntry.MORE, register: Boolean = false) {
+        bottomNav.visibility = View.GONE
+        setChildBack { returnFromAuth(from) }
+        val screen = screenScroll()
+        screen.addView(backBar(if (register) "Daftar" else "Masuk") { returnFromAuth(from) })
+        screen.addView(authHero(register))
+        screen.addGap(14)
+
+        val nameInput = if (register) editText("Nama lengkap") else null
+        val emailInput = editText("Email")
+        val passwordInput = editText("Password")
+        passwordInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        val message = text("", 12f, R.color.marketedge_negative)
+
+        screen.addView(card().apply {
+            if (register && nameInput != null) {
+                addView(text("Nama", 12f, R.color.marketedge_text_muted, Typeface.BOLD))
+                addGap(6)
+                addView(nameInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)))
+                addGap(10)
+            }
+            addView(text("Email", 12f, R.color.marketedge_text_muted, Typeface.BOLD))
+            addGap(6)
+            addView(emailInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)))
+            addGap(10)
+            addView(text("Password", 12f, R.color.marketedge_text_muted, Typeface.BOLD))
+            addGap(6)
+            addView(passwordInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)))
+            addGap(10)
+            addView(message)
+            addGap(10)
+            addView(actionButton(if (register) "Buat Akun" else "Masuk") {
+                val email = emailInput.text.toString().trim()
+                val password = passwordInput.text.toString().trim()
+                val name = nameInput?.text?.toString()?.trim().orEmpty()
+                when {
+                    register && name.isBlank() -> message.text = "Nama wajib diisi."
+                    !email.contains("@") -> message.text = "Masukkan email yang valid."
+                    password.length < 6 -> message.text = "Password minimal 6 karakter."
+                    else -> {
+                        currentUserName = if (register) name else email.substringBefore("@").replaceFirstChar { it.uppercaseChar() }
+                        currentUserEmail = email
+                        if (!isSubscribed && (from == AuthEntry.NEWS || from == AuthEntry.AI)) {
+                            renderSubscription(from)
+                        } else {
+                            continueAfterAccess(from)
+                        }
+                    }
+                }
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)))
+        })
+
+        screen.addGap(12)
+        screen.addView(secondaryActionButton(if (register) "Sudah punya akun? Masuk" else "Belum punya akun? Daftar") {
+            renderAuth(from, register = !register)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
+        screen.addGap(10)
+        screen.addView(infoCard("Akun ini masih tersimpan lokal di aplikasi untuk prototipe. Nanti bisa disambungkan ke backend autentikasi dan payment."))
+        displayScroll(screen)
+    }
+
+    private fun authHero(register: Boolean): View = card().apply {
+        background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
+        addView(text(if (register) "Buat Akun MarketEdge" else "Masuk ke MarketEdge", 24f, R.color.marketedge_text_primary, Typeface.BOLD))
+        addGap(6)
+        addView(text("Akun diperlukan sebelum mengaktifkan langganan untuk berita terbaru dan WarrenAI.", 13f, R.color.marketedge_text_secondary))
+    }
+
+    private fun renderSubscription(from: AuthEntry = AuthEntry.MORE) {
+        if (!isLoggedIn()) {
+            renderAuth(from)
+            return
+        }
+        bottomNav.visibility = View.GONE
+        setChildBack { returnFromAuth(from) }
+        val screen = screenScroll()
+        screen.addView(backBar("Langganan") { returnFromAuth(from) })
+        screen.addView(card().apply {
+            background = roundedRaw(Color.rgb(255, 107, 0), 8)
+            addView(text("MarketEdge Pro", 28f, R.color.white, Typeface.BOLD))
+            addGap(4)
+            addView(text("Buka berita terbaru, WarrenAI, alert premium, dan pengalaman bebas iklan.", 13f, R.color.white))
+        })
+        screen.addGap(12)
+        screen.addView(sectionHeader("Termasuk"))
+        screen.addGap(8)
+        listOf(
+            "Berita terbaru dan detail artikel",
+            "Tanya AI dari headline dan aset",
+            "Alert market dan ringkasan sentimen",
+            "Tampilan bebas iklan"
+        ).forEach {
+            screen.addView(monitorCard(it, "Pro", "Aktif setelah berlangganan"))
+            screen.addGap(8)
+        }
+        screen.addGap(6)
+        screen.addView(actionButton(if (isSubscribed) "Pro Sudah Aktif" else "Aktifkan Pro") {
+            isSubscribed = true
+            continueAfterAccess(from)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)))
+        screen.addGap(10)
+        screen.addView(secondaryActionButton("Nanti Saja") { returnFromAuth(from) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
+        displayScroll(screen)
+    }
+
+    private fun premiumGateCard(title: String, message: String, from: AuthEntry): View = card().apply {
+        setPadding(dp(14), dp(14), dp(14), dp(14))
+        addView(text(title, 22f, R.color.marketedge_text_primary, Typeface.BOLD))
+        addGap(6)
+        addView(text(message, 13f, R.color.marketedge_text_secondary))
+        addGap(14)
+        addView(actionButton(if (isLoggedIn()) "Aktifkan Langganan" else "Masuk / Daftar") {
+            if (isLoggedIn()) renderSubscription(from) else renderAuth(from)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)))
+        addGap(8)
+        addView(text("Akses Pro diperlukan sebelum fitur ini dibuka.", 11f, R.color.marketedge_text_muted).apply {
+            gravity = Gravity.CENTER
+        })
+    }
+
+    private fun newsPreviewCard(): View = card().apply {
+        addView(text("Preview Berita", 16f, R.color.marketedge_text_primary, Typeface.BOLD))
+        addGap(6)
+        addView(text("Masuk untuk membaca headline terbaru, membuka detail artikel, menyimpan berita, dan menanyakan dampaknya ke AI.", 13f, R.color.marketedge_text_secondary))
+    }
+
+    private fun aiPreviewCard(): View = card().apply {
+        addView(text("Preview WarrenAI", 16f, R.color.marketedge_text_primary, Typeface.BOLD))
+        addGap(6)
+        addView(text("AI akan memakai data market dan headline yang dimuat aplikasi untuk menjelaskan risiko, aset sensitif, dan konteks berita.", 13f, R.color.marketedge_text_secondary))
+    }
+
+    private fun returnFromAuth(from: AuthEntry) {
+        when (from) {
+            AuthEntry.NEWS -> renderNews()
+            AuthEntry.AI -> renderIdeas()
+            AuthEntry.MORE -> renderMore()
+        }
+    }
+
+    private fun continueAfterAccess(from: AuthEntry) {
+        when (from) {
+            AuthEntry.NEWS -> renderNews()
+            AuthEntry.AI -> renderIdeas()
+            AuthEntry.MORE -> if (isLoggedIn()) renderProfile() else renderMore()
+        }
+    }
+
     private fun renderAiChat() {
+        if (!hasPremiumAccess()) {
+            if (isLoggedIn()) renderSubscription(AuthEntry.AI) else renderAuth(AuthEntry.AI)
+            return
+        }
         activeAiSurface = AiSurface.FULLSCREEN
         setChildBack { renderMore() }
         bottomNav.visibility = View.GONE
@@ -2374,6 +2584,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun askAiAboutNews(article: NewsArticle) {
+        if (!hasPremiumAccess()) {
+            if (isLoggedIn()) renderSubscription(AuthEntry.AI) else renderAuth(AuthEntry.AI)
+            return
+        }
         activeAiSurface = AiSurface.PAGE
         pendingIdeasChatScroll = true
         bottomNav.selectedItemId = R.id.nav_ideas
@@ -2391,6 +2605,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun askAiAboutAsset(asset: MarketAsset) {
+        if (!hasPremiumAccess()) {
+            if (isLoggedIn()) renderSubscription(AuthEntry.AI) else renderAuth(AuthEntry.AI)
+            return
+        }
         activeAiSurface = AiSurface.PAGE
         pendingIdeasChatScroll = true
         bottomNav.selectedItemId = R.id.nav_ideas
@@ -2580,5 +2798,11 @@ class MainActivity : AppCompatActivity() {
     private enum class AiSurface {
         PAGE,
         FULLSCREEN
+    }
+
+    private enum class AuthEntry {
+        MORE,
+        NEWS,
+        AI
     }
 }
