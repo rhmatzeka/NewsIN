@@ -861,56 +861,58 @@ class MainActivity : AppCompatActivity() {
         addView(text("Coba kategori Latest atau Real News untuk melihat semua headline terbaru yang tersedia.", 13f, R.color.marketedge_text_secondary))
     }
 
-    private fun featuredNews(article: NewsArticle): View = card().apply {
-        addView(articleImage(article, 172))
-        addGap(12)
-        addView(LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            addView(text(article.title, 20f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
-                maxLines = 3
-                ellipsize = TextUtils.TruncateAt.END
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(newsBookmarkButton(article) { renderNews() }, LinearLayout.LayoutParams(dp(38), dp(38)).apply {
-                marginStart = dp(8)
+    private fun featuredNews(article: NewsArticle): View =
+        FrameLayout(this).apply {
+            addView(card().apply {
+                addView(articleImage(article, 172))
+                addGap(12)
+                addView(text(article.title, 20f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+                    maxLines = 3
+                    ellipsize = TextUtils.TruncateAt.END
+                })
+                addGap(8)
+                addView(text("${article.source} • ${article.timeAgo}", 12f, R.color.marketedge_text_muted))
+                addGap(10)
+                addTagRow(article)
+                addGap(10)
+                addView(actionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40)))
+                setOnClickListener { openNewsDetail(article) }
+            }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(newsBookmarkButton(article) { renderNews() }, FrameLayout.LayoutParams(dp(34), dp(34), Gravity.TOP or Gravity.END).apply {
+                topMargin = dp(10)
+                rightMargin = dp(10)
             })
-        })
-        addGap(8)
-        addView(text("${article.source} • ${article.timeAgo}", 12f, R.color.marketedge_text_muted))
-        addGap(10)
-        addTagRow(article)
-        addGap(10)
-        addView(actionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40)))
-        setOnClickListener { openNewsDetail(article) }
-    }
+        }
 
-    private fun newsSmall(article: NewsArticle): View {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(12), dp(12), dp(12))
-            background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
-            setOnClickListener { openNewsDetail(article) }
-        }
-        row.addView(articleImage(article, 84, compact = true), LinearLayout.LayoutParams(dp(92), dp(84)).apply { marginEnd = dp(12) })
-        val col = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(text(article.title, 15f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
-                maxLines = 2
-                ellipsize = TextUtils.TruncateAt.END
+    private fun newsSmall(article: NewsArticle): View =
+        FrameLayout(this).apply {
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(12), dp(42), dp(12))
+                background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
+                setOnClickListener { openNewsDetail(article) }
+            }
+            row.addView(articleImage(article, 84, compact = true), LinearLayout.LayoutParams(dp(92), dp(84)).apply { marginEnd = dp(12) })
+            val col = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(text(article.title, 15f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+                    maxLines = 2
+                    ellipsize = TextUtils.TruncateAt.END
+                })
+                addView(text("${article.source} • ${article.timeAgo}", 12f, R.color.marketedge_text_muted))
+                addGap(6)
+                addTagRow(article)
+                addGap(8)
+                addView(secondaryActionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(34)))
+            }
+            row.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(row, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(newsBookmarkButton(article) { renderNews() }, FrameLayout.LayoutParams(dp(32), dp(32), Gravity.TOP or Gravity.END).apply {
+                topMargin = dp(14)
+                rightMargin = dp(10)
             })
-            addView(text("${article.source} • ${article.timeAgo}", 12f, R.color.marketedge_text_muted))
-            addGap(6)
-            addTagRow(article)
-            addGap(8)
-            addView(secondaryActionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(34)))
         }
-        row.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        row.addView(newsBookmarkButton(article) { renderNews() }, LinearLayout.LayoutParams(dp(36), dp(36)).apply {
-            marginStart = dp(8)
-        })
-        return row
-    }
 
     private fun LinearLayout.addTagRow(article: NewsArticle) {
         val tagRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
@@ -928,10 +930,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun newsBookmarkButton(article: NewsArticle, onChanged: () -> Unit): TextView =
-        text(if (isSavedArticle(article)) "★" else "☆", 23f, if (isSavedArticle(article)) R.color.marketedge_accent else R.color.marketedge_text_muted, Typeface.BOLD).apply {
+        text(if (isSavedArticle(article)) "★" else "☆", 20f, if (isSavedArticle(article)) R.color.marketedge_accent else R.color.marketedge_text_muted, Typeface.BOLD).apply {
             gravity = Gravity.CENTER
+            includeFontPadding = false
             contentDescription = if (isSavedArticle(article)) "Hapus dari Watchlist" else "Simpan ke Watchlist"
-            background = rounded(R.color.marketedge_card_soft, 12, R.color.marketedge_hairline)
+            background = roundedRaw(Color.argb(210, 34, 34, 34), 12)
             setOnClickListener {
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                 toggleSavedArticle(article)
@@ -1285,18 +1288,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun aiNewsContextCard(article: NewsArticle): View = card().apply {
         setPadding(dp(10), dp(10), dp(10), dp(10))
-        addView(articleImage(article, 72), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(72)))
-        addGap(8)
-        addView(LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.TOP
-            addView(text(article.title, 13f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
-                maxLines = 2
-                ellipsize = TextUtils.TruncateAt.END
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(newsBookmarkButton(article) { renderIdeas() }, LinearLayout.LayoutParams(dp(30), dp(30)).apply {
-                marginStart = dp(6)
+        addView(FrameLayout(context).apply {
+            addView(articleImage(article, 72), FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(72)))
+            addView(newsBookmarkButton(article) { renderIdeas() }, FrameLayout.LayoutParams(dp(30), dp(30), Gravity.TOP or Gravity.END).apply {
+                topMargin = dp(6)
+                rightMargin = dp(6)
             })
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(72)))
+        addGap(8)
+        addView(text(article.title, 13f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
         })
         addGap(4)
         addView(text("${article.source} • ${article.category}", 10f, R.color.marketedge_text_muted).apply {
