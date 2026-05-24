@@ -1,4 +1,4 @@
-package id.rahmat.newsin.presentation.components
+package id.rahmat.marketedge.presentation.components
 
 import android.content.Context
 import android.graphics.Canvas
@@ -6,7 +6,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.util.AttributeSet
 import android.view.View
-import id.rahmat.newsin.R
+import id.rahmat.marketedge.R
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -37,7 +37,7 @@ class SparklineView @JvmOverloads constructor(
         points = values
         positive = isPositive
         detailMode = largeChart
-        val color = if (largeChart) 0xFF0C6DB3.toInt() else context.getColor(if (isPositive) R.color.newsin_positive else R.color.newsin_negative)
+        val color = if (largeChart) 0xFF0C6DB3.toInt() else context.getColor(if (isPositive) R.color.marketedge_positive else R.color.marketedge_negative)
         linePaint.color = color
         fillPaint.color = color
         linePaint.strokeWidth = if (largeChart) 3f else 4f

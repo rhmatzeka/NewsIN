@@ -1,4 +1,4 @@
-package id.rahmat.newsin
+package id.rahmat.marketedge
 
 import org.junit.Test
 

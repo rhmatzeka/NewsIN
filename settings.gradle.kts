@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "NewsIN"
+rootProject.name = "MarketEdge"
 include(":app")
  

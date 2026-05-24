@@ -1,4 +1,4 @@
-package id.rahmat.newsin.domain.model
+package id.rahmat.marketedge.domain.model
 
 data class WatchlistGroup(
     val name: String,

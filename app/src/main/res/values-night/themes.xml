@@ -1,13 +1,13 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Base.Theme.NewsIN" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Base.Theme.MarketEdge" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">@color/newsin_accent</item>
-        <item name="colorPrimary">@color/newsin_accent</item>
-        <item name="colorOnPrimary">@color/newsin_text_primary</item>
-        <item name="colorSurface">@color/newsin_surface</item>
-        <item name="colorOnSurface">@color/newsin_text_primary</item>
-        <item name="android:windowBackground">@color/newsin_background</item>
+        <item name="android:colorAccent">@color/marketedge_accent</item>
+        <item name="colorPrimary">@color/marketedge_accent</item>
+        <item name="colorOnPrimary">@color/marketedge_text_primary</item>
+        <item name="colorSurface">@color/marketedge_surface</item>
+        <item name="colorOnSurface">@color/marketedge_text_primary</item>
+        <item name="android:windowBackground">@color/marketedge_background</item>
     </style>
 </resources>

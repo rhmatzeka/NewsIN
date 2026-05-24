@@ -1,6 +1,6 @@
-# NewsIN
+# MarketEdge
 
-NewsIN adalah aplikasi Android market/news bergaya Investing.com dengan tampilan dark, market feed real, halaman detail instrumen interaktif, berita terbaru, watchlist, dan WarrenAI.
+MarketEdge adalah aplikasi Android market/news bergaya Investing.com dengan tampilan dark, market feed real, halaman detail instrumen interaktif, berita terbaru, watchlist, dan WarrenAI.
 
 ## Fitur
 
@@ -38,7 +38,7 @@ Jika feed tidak tersedia atau koneksi gagal, aplikasi menampilkan state loading/
 ## Struktur Project
 
 ```text
-app/src/main/java/id/rahmat/newsin/
+app/src/main/java/id/rahmat/marketedge/
 ├── data/
 │   ├── api/
 │   └── repository/
@@ -49,7 +49,7 @@ app/src/main/java/id/rahmat/newsin/
 ├── presentation/
 │   └── components/
 ├── MainActivity.kt
-└── NewsInApplication.kt
+└── MarketEdgeApplication.kt
 ```
 
 ## Build

@@ -21,7 +21,7 @@ fun String.asBuildConfigString(): String =
 val dotEnv = readDotEnv()
 
 android {
-    namespace = "id.rahmat.newsin"
+    namespace = "id.rahmat.marketedge"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -29,7 +29,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "id.rahmat.newsin"
+        applicationId = "id.rahmat.marketedge"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

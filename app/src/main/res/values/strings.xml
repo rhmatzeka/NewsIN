@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">NewsIN</string>
+    <string name="app_name">MarketEdge</string>
     <string name="tab_market">Pasar</string>
     <string name="tab_news">Berita</string>
     <string name="tab_ideas">AI</string>

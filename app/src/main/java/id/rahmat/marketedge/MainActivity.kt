@@ -1,4 +1,4 @@
-package id.rahmat.newsin
+package id.rahmat.marketedge
 
 import android.Manifest
 import android.content.Intent
@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.Html
+import android.text.TextUtils
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
@@ -24,33 +25,34 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Space
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomnavigation.BottomNavigationView
-import id.rahmat.newsin.data.api.PublicApiClient
-import id.rahmat.newsin.data.repository.RealNewsInRepository
-import id.rahmat.newsin.domain.model.ChatMessage
-import id.rahmat.newsin.domain.model.MarketAsset
-import id.rahmat.newsin.domain.model.MarketDetailStats
-import id.rahmat.newsin.domain.model.NewsArticle
-import id.rahmat.newsin.domain.model.PastChampion
-import id.rahmat.newsin.presentation.components.SparklineView
-import id.rahmat.newsin.presentation.components.addGap
-import id.rahmat.newsin.presentation.components.card
-import id.rahmat.newsin.presentation.components.chip
-import id.rahmat.newsin.presentation.components.dp
-import id.rahmat.newsin.presentation.components.editText
-import id.rahmat.newsin.presentation.components.horizontalChips
-import id.rahmat.newsin.presentation.components.iconButton
-import id.rahmat.newsin.presentation.components.rounded
-import id.rahmat.newsin.presentation.components.roundedRaw
-import id.rahmat.newsin.presentation.components.screenScroll
-import id.rahmat.newsin.presentation.components.sectionHeader
-import id.rahmat.newsin.presentation.components.text
-import id.rahmat.newsin.presentation.components.topBar
+import id.rahmat.marketedge.data.api.PublicApiClient
+import id.rahmat.marketedge.data.repository.RealMarketEdgeRepository
+import id.rahmat.marketedge.domain.model.ChatMessage
+import id.rahmat.marketedge.domain.model.MarketAsset
+import id.rahmat.marketedge.domain.model.MarketDetailStats
+import id.rahmat.marketedge.domain.model.NewsArticle
+import id.rahmat.marketedge.domain.model.PastChampion
+import id.rahmat.marketedge.presentation.components.SparklineView
+import id.rahmat.marketedge.presentation.components.addGap
+import id.rahmat.marketedge.presentation.components.card
+import id.rahmat.marketedge.presentation.components.chip
+import id.rahmat.marketedge.presentation.components.dp
+import id.rahmat.marketedge.presentation.components.editText
+import id.rahmat.marketedge.presentation.components.horizontalChips
+import id.rahmat.marketedge.presentation.components.iconButton
+import id.rahmat.marketedge.presentation.components.rounded
+import id.rahmat.marketedge.presentation.components.roundedRaw
+import id.rahmat.marketedge.presentation.components.screenScroll
+import id.rahmat.marketedge.presentation.components.sectionHeader
+import id.rahmat.marketedge.presentation.components.text
+import id.rahmat.marketedge.presentation.components.topBar
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
@@ -63,7 +65,7 @@ import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
     private val apiClient = PublicApiClient()
-    private val repository = RealNewsInRepository(apiClient)
+    private val repository = RealMarketEdgeRepository(apiClient)
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val imageExecutor: ExecutorService = Executors.newFixedThreadPool(3)
     private val handler = Handler(Looper.getMainLooper())
@@ -103,7 +105,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = getColor(R.color.newsin_surface)
+        window.navigationBarColor = getColor(R.color.marketedge_surface)
         requestNotificationPermission()
         showSplash()
     }
@@ -118,12 +120,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSplash() {
         val splash = FrameLayout(this).apply {
-            setBackgroundColor(getColor(R.color.newsin_background))
-            val logo = text("NewsIN", 42f, R.color.newsin_accent, Typeface.BOLD).apply {
+            setBackgroundColor(getColor(R.color.marketedge_background))
+            val logo = text("MarketEdge", 42f, R.color.marketedge_accent, Typeface.BOLD).apply {
                 alpha = 0f
                 gravity = Gravity.CENTER
             }
-            val subtitle = text("Market intelligence, berita, dan WarrenAI", 14f, R.color.newsin_text_secondary).apply {
+            val subtitle = text("Market intelligence, berita, dan WarrenAI", 14f, R.color.marketedge_text_secondary).apply {
                 alpha = 0f
                 gravity = Gravity.CENTER
             }
@@ -151,18 +153,21 @@ class MainActivity : AppCompatActivity() {
     private fun showMain() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.newsin_background))
+            setBackgroundColor(getColor(R.color.marketedge_background))
         }
         content = FrameLayout(this).apply {
-            setBackgroundColor(getColor(R.color.newsin_background))
+            setBackgroundColor(getColor(R.color.marketedge_background))
         }
         bottomNav = BottomNavigationView(this).apply {
             inflateMenu(R.menu.bottom_nav_menu)
-            setBackgroundColor(getColor(R.color.newsin_surface))
+            setBackgroundColor(getColor(R.color.marketedge_surface))
+            elevation = dp(10).toFloat()
+            setPadding(0, dp(4), 0, dp(6))
             labelVisibilityMode = BottomNavigationView.LABEL_VISIBILITY_LABELED
             itemIconTintList = navTint()
             itemTextColor = navTint()
-            itemRippleColor = ColorStateList.valueOf(getColor(R.color.newsin_card_soft))
+            itemRippleColor = ColorStateList.valueOf(getColor(R.color.marketedge_card_soft))
+            itemActiveIndicatorColor = ColorStateList.valueOf(Color.argb(42, 255, 107, 0))
             setOnItemSelectedListener { item ->
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                 when (item.itemId) {
@@ -184,8 +189,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun navTint(): ColorStateList = ColorStateList(
         arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-        intArrayOf(getColor(R.color.newsin_accent), getColor(R.color.newsin_text_muted))
+        intArrayOf(getColor(R.color.marketedge_accent), getColor(R.color.marketedge_text_muted))
     )
+
+    private fun syncBottomNav(itemId: Int) {
+        if (!::bottomNav.isInitialized) return
+        bottomNav.visibility = View.VISIBLE
+        if (bottomNav.selectedItemId != itemId) {
+            bottomNav.menu.findItem(itemId)?.isChecked = true
+        }
+    }
 
     private fun applyInsets(root: View) {
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
@@ -205,9 +218,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderMarket() {
-        bottomNav.visibility = View.VISIBLE
+        syncBottomNav(R.id.nav_market)
         val screen = screenScroll()
-        screen.addView(topBar("NewsIN", showLogo = true) { renderSearch() })
+        screen.addView(topBar("MarketEdge", showLogo = true) { renderSearch() })
         screen.addView(marketCategoryChips())
         when {
             marketLoading -> {
@@ -281,20 +294,20 @@ class MainActivity : AppCompatActivity() {
     private fun marketOverview(assets: List<MarketAsset>): View = card().apply {
         val gainers = assets.count { it.isPositive }
         val losers = assets.size - gainers
-        addView(text("${assets.size} aset aktif", 20f, R.color.newsin_text_primary, Typeface.BOLD))
+        addView(text("${assets.size} aset aktif", 20f, R.color.marketedge_text_primary, Typeface.BOLD))
         addGap(4)
-        addView(text("Naik $gainers • Turun $losers • Filter: ${selectedMarketTitle()}", 13f, R.color.newsin_text_muted))
+        addView(text("Naik $gainers • Turun $losers • Filter: ${selectedMarketTitle()}", 13f, R.color.marketedge_text_muted))
         val leader = assets.maxByOrNull { it.changePercent }
         if (leader != null) {
             addGap(8)
-            addView(text("Top mover: ${leader.symbol} ${formatPercent(leader.changePercent)}", 14f, if (leader.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
+            addView(text("Top mover: ${leader.symbol} ${formatPercent(leader.changePercent)}", 14f, if (leader.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD))
         }
     }
 
     private fun emptyMarketCategoryCard(): View = card().apply {
-        addView(text("Belum ada data ${selectedMarketTitle()}", 16f, R.color.newsin_text_primary, Typeface.BOLD))
+        addView(text("Belum ada data ${selectedMarketTitle()}", 16f, R.color.marketedge_text_primary, Typeface.BOLD))
         addGap(6)
-        addView(text("Kategori ini belum tersedia. Pantau crypto, mata uang, emas, dan perak dari daftar pasar aktif.", 13f, R.color.newsin_text_secondary))
+        addView(text("Kategori ini belum tersedia. Pantau crypto, mata uang, emas, dan perak dari daftar pasar aktif.", 13f, R.color.marketedge_text_secondary))
     }
 
     private fun marketItem(asset: MarketAsset): View {
@@ -302,7 +315,7 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(12), dp(12), dp(12))
-            background = rounded(R.color.newsin_surface, 0)
+            background = rounded(R.color.marketedge_surface, 0)
             setOnClickListener {
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                 openMarketDetail(asset)
@@ -310,22 +323,22 @@ class MainActivity : AppCompatActivity() {
         }
         val left = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(text(asset.name, 20f, R.color.newsin_text_primary, Typeface.BOLD).apply {
+            addView(text(asset.name, 20f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
                 maxLines = 1
             })
             addGap(4)
             val meta = if (asset.unit.isNotBlank()) "${asset.updatedAt} | ${asset.unit}" else "${asset.updatedAt} | ${asset.symbol}"
-            addView(text(meta, 14f, R.color.newsin_text_muted))
+            addView(text(meta, 14f, R.color.marketedge_text_muted))
         }
         val right = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.END
-            addView(text(asset.price, 22f, R.color.newsin_text_primary, Typeface.BOLD).apply {
+            addView(text(asset.price, 22f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
                 gravity = Gravity.END
                 maxLines = 1
             })
             addGap(4)
-            addView(text("${asset.changeValue} (${formatPercent(asset.changePercent)})", 15f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD).apply {
+            addView(text("${asset.changeValue} (${formatPercent(asset.changePercent)})", 15f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD).apply {
                 gravity = Gravity.END
                 maxLines = 1
             })
@@ -346,12 +359,12 @@ class MainActivity : AppCompatActivity() {
         val screen = screenScroll()
         screen.addView(marketDetailBar(asset))
         screen.addGap(10)
-        screen.addView(text(asset.name, 17f, R.color.newsin_text_muted, Typeface.BOLD))
+        screen.addView(text(asset.name, 17f, R.color.marketedge_text_muted, Typeface.BOLD))
         screen.addGap(4)
-        screen.addView(text(asset.price, 38f, R.color.newsin_text_primary, Typeface.BOLD))
-        screen.addView(text("${asset.changeValue} (${formatPercent(asset.changePercent)})", 18f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
+        screen.addView(text(asset.price, 38f, R.color.marketedge_text_primary, Typeface.BOLD))
+        screen.addView(text("${asset.changeValue} (${formatPercent(asset.changePercent)})", 18f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD))
         screen.addGap(4)
-        screen.addView(text("${asset.updatedAt} - Market feed", 14f, R.color.newsin_text_muted))
+        screen.addView(text("${asset.updatedAt} - Market feed", 14f, R.color.marketedge_text_muted))
         screen.addGap(18)
         screen.addView(marketDetailTabs(asset))
         screen.addGap(10)
@@ -361,41 +374,41 @@ class MainActivity : AppCompatActivity() {
             addView(TextView(context).apply {
                 text = "↗"
                 gravity = Gravity.CENTER
-                setTextColor(getColor(R.color.newsin_text_muted))
+                setTextColor(getColor(R.color.marketedge_text_muted))
                 textSize = 22f
-                background = rounded(R.color.newsin_card, 28, R.color.newsin_hairline)
+                background = rounded(R.color.marketedge_card, 28, R.color.marketedge_hairline)
             }, LinearLayout.LayoutParams(dp(58), dp(58)))
             addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
-            addView(text("▣ Analisis grafik", 15f, R.color.newsin_text_primary, Typeface.BOLD).apply {
+            addView(text("▣ Analisis grafik", 15f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
                 gravity = Gravity.CENTER
                 setPadding(dp(14), dp(10), dp(14), dp(10))
-                background = rounded(R.color.newsin_card, 8, R.color.newsin_hairline)
+                background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
             })
         })
         screen.addGap(12)
         val chartKey = marketChartKey(asset)
         val chartData = marketChartCache[chartKey] ?: asset.sparkline
         screen.addView(FrameLayout(this).apply {
-            background = rounded(R.color.newsin_background, 0)
+            background = rounded(R.color.marketedge_background, 0)
             addView(SparklineView(context).apply {
                 submit(chartData.ifEmpty { listOf(1f, 1.2f, 1.1f, 1.4f, 1.3f) }, asset.isPositive, largeChart = true)
             }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-            addView(text(selectedMarketChartRange, 12f, R.color.newsin_text_muted, Typeface.BOLD).apply {
+            addView(text(selectedMarketChartRange, 12f, R.color.marketedge_text_muted, Typeface.BOLD).apply {
                 setPadding(dp(8), dp(4), dp(8), dp(4))
-                background = rounded(R.color.newsin_card, 4, R.color.newsin_hairline)
+                background = rounded(R.color.marketedge_card, 4, R.color.marketedge_hairline)
             }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.START or Gravity.TOP))
-            addView(text(asset.price, 13f, R.color.newsin_text_primary, Typeface.BOLD).apply {
+            addView(text(asset.price, 13f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
                 setPadding(dp(8), dp(4), dp(8), dp(4))
-                background = rounded(R.color.newsin_card, 4, R.color.newsin_hairline)
+                background = rounded(R.color.marketedge_card, 4, R.color.marketedge_hairline)
             }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.BOTTOM))
             when {
-                marketChartLoading[chartKey] == true -> addView(text("Memperbarui grafik...", 12f, R.color.newsin_accent, Typeface.BOLD).apply {
+                marketChartLoading[chartKey] == true -> addView(text("Memperbarui grafik...", 12f, R.color.marketedge_accent, Typeface.BOLD).apply {
                     setPadding(dp(8), dp(4), dp(8), dp(4))
-                    background = rounded(R.color.newsin_card, 4, R.color.newsin_hairline)
+                    background = rounded(R.color.marketedge_card, 4, R.color.marketedge_hairline)
                 }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.TOP))
-                marketChartErrors[chartKey] != null -> addView(text("Grafik sementara", 12f, R.color.newsin_text_muted, Typeface.BOLD).apply {
+                marketChartErrors[chartKey] != null -> addView(text("Grafik sementara", 12f, R.color.marketedge_text_muted, Typeface.BOLD).apply {
                     setPadding(dp(8), dp(4), dp(8), dp(4))
-                    background = rounded(R.color.newsin_card, 4, R.color.newsin_hairline)
+                    background = rounded(R.color.marketedge_card, 4, R.color.marketedge_hairline)
                 }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.TOP))
             }
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(260)))
@@ -489,9 +502,9 @@ class MainActivity : AppCompatActivity() {
             else -> "Turun ${formatPercent(momentum)}"
         }
         addView(card().apply {
-            addView(text("Sinyal Teknikal", 18f, R.color.newsin_text_primary, Typeface.BOLD))
+            addView(text("Sinyal Teknikal", 18f, R.color.marketedge_text_primary, Typeface.BOLD))
             addGap(6)
-            addView(text("Dihitung dari histori harga pada rentang $selectedMarketChartRange.", 13f, R.color.newsin_text_muted))
+            addView(text("Dihitung dari histori harga pada rentang $selectedMarketChartRange.", 13f, R.color.marketedge_text_muted))
         })
         addGap(12)
         addView(statRow("Trend Rentang", trend))
@@ -532,14 +545,14 @@ class MainActivity : AppCompatActivity() {
             null
         }
         addView(card().apply {
-            addView(text("Ringkasan Analisis", 18f, R.color.newsin_text_primary, Typeface.BOLD))
+            addView(text("Ringkasan Analisis", 18f, R.color.marketedge_text_primary, Typeface.BOLD))
             addGap(8)
             addView(text(buildString {
                 append("${asset.symbol} bergerak ${formatPercent(asset.changePercent)} dalam 24 jam. ")
                 momentum?.let { append("Pada rentang $selectedMarketChartRange, momentumnya ${formatPercent(it)}. ") }
                 if (stats != null) append("Rentang harian ${stats.dayRange}, volume 24j ${stats.volume24h}. ")
                 append("Gunakan ini sebagai konteks awal, bukan saran beli/jual.")
-            }, 14f, R.color.newsin_text_secondary))
+            }, 14f, R.color.marketedge_text_secondary))
             addGap(12)
             addView(actionButton("Tanyakan AI tentang ${asset.symbol}") { askAiAboutAsset(asset) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
         })
@@ -548,9 +561,9 @@ class MainActivity : AppCompatActivity() {
     private fun LinearLayout.addDataTab(asset: MarketAsset) {
         val stats = marketDetailStats(asset)
         addView(card().apply {
-            addView(text("Data Pasar", 18f, R.color.newsin_text_primary, Typeface.BOLD))
+            addView(text("Data Pasar", 18f, R.color.marketedge_text_primary, Typeface.BOLD))
             addGap(6)
-            addView(text("${asset.unit.ifBlank { asset.symbol }} • ${asset.updatedAt}", 13f, R.color.newsin_text_muted))
+            addView(text("${asset.unit.ifBlank { asset.symbol }} • ${asset.updatedAt}", 13f, R.color.marketedge_text_muted))
         })
         addGap(12)
         addDetailStatRows(stats)
@@ -559,7 +572,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun LinearLayout.addMoreButton(asset: MarketAsset) {
-        addView(text(if (marketDetailExpanded) "SEMBUNYIKAN DATA ^" else "TAMPILKAN LEBIH BANYAK v", 16f, R.color.newsin_text_primary, Typeface.BOLD).apply {
+        addView(text(if (marketDetailExpanded) "SEMBUNYIKAN DATA ^" else "TAMPILKAN LEBIH BANYAK v", 16f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
             setPadding(dp(6), dp(10), dp(6), dp(10))
             setOnClickListener {
                 marketDetailExpanded = !marketDetailExpanded
@@ -666,12 +679,12 @@ class MainActivity : AppCompatActivity() {
             addView(iconButton("Kembali", "‹").apply { setOnClickListener { renderMarket() } }, LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(10) })
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                addView(text(asset.symbol, 23f, R.color.newsin_text_primary, Typeface.BOLD))
-                addView(text(asset.unit.ifBlank { asset.source }, 12f, R.color.newsin_text_muted))
+                addView(text(asset.symbol, 23f, R.color.marketedge_text_primary, Typeface.BOLD))
+                addView(text(asset.unit.ifBlank { asset.source }, 12f, R.color.marketedge_text_muted))
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(iconButton("Cari", "⌕"), LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(8) })
             addView(iconButton("Peringatan", "♧"), LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(8) })
-            addView(text(if (isInWatchlist(asset)) "★" else "☆", 28f, if (isInWatchlist(asset)) R.color.newsin_accent else R.color.newsin_text_muted, Typeface.BOLD).apply {
+            addView(text(if (isInWatchlist(asset)) "★" else "☆", 28f, if (isInWatchlist(asset)) R.color.marketedge_accent else R.color.marketedge_text_muted, Typeface.BOLD).apply {
                 gravity = Gravity.CENTER
                 contentDescription = "Watchlist"
                 setOnClickListener {
@@ -679,10 +692,10 @@ class MainActivity : AppCompatActivity() {
                     openMarketDetail(asset)
                 }
             }, LinearLayout.LayoutParams(dp(42), dp(42)))
-        }
+    }
 
     private fun renderNews() {
-        bottomNav.visibility = View.VISIBLE
+        syncBottomNav(R.id.nav_news)
         val screen = screenScroll()
         screen.addView(topBar("Berita") { renderSearch { renderNews() } })
         screen.addView(newsCategoryChips())
@@ -749,23 +762,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun newsBrief(articles: List<NewsArticle>): View = card().apply {
-        addView(text("${articles.size} headline aktif", 18f, R.color.newsin_text_primary, Typeface.BOLD))
+        addView(text("${articles.size} headline aktif", 18f, R.color.marketedge_text_primary, Typeface.BOLD))
         addGap(4)
-        addView(text("Headline terbaru • Filter: $selectedNewsCategory", 12f, R.color.newsin_text_muted))
+        addView(text("Headline terbaru • Filter: $selectedNewsCategory", 12f, R.color.marketedge_text_muted))
     }
 
     private fun emptyNewsCategoryCard(): View = card().apply {
-        addView(text("Belum ada berita $selectedNewsCategory", 16f, R.color.newsin_text_primary, Typeface.BOLD))
+        addView(text("Belum ada berita $selectedNewsCategory", 16f, R.color.marketedge_text_primary, Typeface.BOLD))
         addGap(6)
-        addView(text("Coba kategori Latest atau Real News untuk melihat semua headline terbaru yang tersedia.", 13f, R.color.newsin_text_secondary))
+        addView(text("Coba kategori Latest atau Real News untuk melihat semua headline terbaru yang tersedia.", 13f, R.color.marketedge_text_secondary))
     }
 
     private fun featuredNews(article: NewsArticle): View = card().apply {
         addView(articleImage(article, 172))
         addGap(12)
-        addView(text(article.title, 20f, R.color.newsin_text_primary, Typeface.BOLD))
+        addView(text(article.title, 20f, R.color.marketedge_text_primary, Typeface.BOLD))
         addGap(8)
-        addView(text("${article.source} • ${article.timeAgo}", 12f, R.color.newsin_text_muted))
+        addView(text("${article.source} • ${article.timeAgo}", 12f, R.color.marketedge_text_muted))
         addGap(10)
         addTagRow(article)
         addGap(10)
@@ -778,14 +791,14 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), dp(12), dp(12), dp(12))
-            background = rounded(R.color.newsin_card, 8, R.color.newsin_hairline)
+            background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
             setOnClickListener { openNewsDetail(article) }
         }
         row.addView(articleImage(article, 84, compact = true), LinearLayout.LayoutParams(dp(92), dp(84)).apply { marginEnd = dp(12) })
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(text(article.title, 15f, R.color.newsin_text_primary, Typeface.BOLD))
-            addView(text("${article.source} • ${article.timeAgo}", 12f, R.color.newsin_text_muted))
+            addView(text(article.title, 15f, R.color.marketedge_text_primary, Typeface.BOLD))
+            addView(text("${article.source} • ${article.timeAgo}", 12f, R.color.marketedge_text_muted))
             addGap(6)
             addTagRow(article)
             addGap(8)
@@ -807,7 +820,7 @@ class MainActivity : AppCompatActivity() {
     private fun proBadge(): TextView = text("Pro", 11f, R.color.white, Typeface.BOLD).apply {
         gravity = Gravity.CENTER
         setPadding(dp(8), dp(3), dp(8), dp(3))
-        background = rounded(R.color.newsin_accent, 12)
+        background = rounded(R.color.marketedge_accent, 12)
     }
 
     private fun openNewsDetail(article: NewsArticle) {
@@ -816,9 +829,9 @@ class MainActivity : AppCompatActivity() {
         screen.addView(backBar("Berita") { renderNews() })
         screen.addView(articleImage(article, 210))
         screen.addGap(14)
-        screen.addView(text(article.title, 24f, R.color.newsin_text_primary, Typeface.BOLD))
+        screen.addView(text(article.title, 24f, R.color.marketedge_text_primary, Typeface.BOLD))
         screen.addGap(8)
-        screen.addView(text("${article.source} • ${article.timeAgo}", 13f, R.color.newsin_text_muted))
+        screen.addView(text("${article.source} • ${article.timeAgo}", 13f, R.color.marketedge_text_muted))
         screen.addGap(12)
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -846,23 +859,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun articleContentCard(article: NewsArticle): View = card().apply {
-        addView(text("Artikel Lengkap", 18f, R.color.newsin_text_primary, Typeface.BOLD))
+        addView(text("Artikel Lengkap", 18f, R.color.marketedge_text_primary, Typeface.BOLD))
         addGap(8)
         val fullText = articleContentCache[article.id]
         val error = articleContentErrors[article.id]
         when {
-            fullText != null -> addView(text(fullText, 16f, R.color.newsin_text_secondary))
+            fullText != null -> addView(text(fullText, 16f, R.color.marketedge_text_secondary))
             articleContentLoading[article.id] == true -> {
-                addView(text(cleanSummary(article), 16f, R.color.newsin_text_secondary))
+                addView(text(cleanSummary(article), 16f, R.color.marketedge_text_secondary))
                 addGap(12)
-                addView(text("Memuat artikel lengkap...", 13f, R.color.newsin_accent, Typeface.BOLD))
+                addView(text("Memuat artikel lengkap...", 13f, R.color.marketedge_accent, Typeface.BOLD))
             }
             error != null -> {
-                addView(text(cleanSummary(article), 16f, R.color.newsin_text_secondary))
+                addView(text(cleanSummary(article), 16f, R.color.marketedge_text_secondary))
                 addGap(12)
-                addView(text("Artikel penuh belum bisa dimuat: $error", 13f, R.color.newsin_negative, Typeface.BOLD))
+                addView(text("Artikel penuh belum bisa dimuat: $error", 13f, R.color.marketedge_negative, Typeface.BOLD))
             }
-            else -> addView(text(cleanSummary(article), 16f, R.color.newsin_text_secondary))
+            else -> addView(text(cleanSummary(article), 16f, R.color.marketedge_text_secondary))
         }
     }
 
@@ -894,7 +907,7 @@ class MainActivity : AppCompatActivity() {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 10_000
             readTimeout = 10_000
-            setRequestProperty("User-Agent", "Mozilla/5.0 NewsIN Android")
+            setRequestProperty("User-Agent", "Mozilla/5.0 MarketEdge Android")
             setRequestProperty("Accept", "text/html,application/xhtml+xml")
         }
         return try {
@@ -964,7 +977,7 @@ class MainActivity : AppCompatActivity() {
                 setBackgroundColor(article.imageColor)
             }
             addView(image, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-            addView(text(if (compact) article.category else "NewsIN", if (compact) 10f else 13f, R.color.white, Typeface.BOLD).apply {
+            addView(text(if (compact) article.category else "MarketEdge", if (compact) 10f else 13f, R.color.white, Typeface.BOLD).apply {
                 alpha = 0.9f
                 setPadding(dp(10), dp(7), dp(10), dp(7))
                 background = roundedRaw(Color.argb(110, 0, 0, 0), 8)
@@ -997,7 +1010,7 @@ class MainActivity : AppCompatActivity() {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 8_000
             readTimeout = 8_000
-            setRequestProperty("User-Agent", "NewsIN Android")
+            setRequestProperty("User-Agent", "MarketEdge Android")
         }
         return try {
             if (connection.responseCode !in 200..299) return null
@@ -1026,14 +1039,14 @@ class MainActivity : AppCompatActivity() {
     private fun actionButton(label: String, onClick: (View) -> Unit): TextView =
         text(label, 14f, R.color.white, Typeface.BOLD).apply {
             gravity = Gravity.CENTER
-            background = rounded(R.color.newsin_accent, 8)
+            background = rounded(R.color.marketedge_accent, 8)
             setOnClickListener(onClick)
         }
 
     private fun secondaryActionButton(label: String, onClick: (View) -> Unit): TextView =
-        text(label, 13f, R.color.newsin_text_primary, Typeface.BOLD).apply {
+        text(label, 13f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
             gravity = Gravity.CENTER
-            background = rounded(R.color.newsin_card_soft, 8, R.color.newsin_hairline)
+            background = rounded(R.color.marketedge_card_soft, 8, R.color.marketedge_hairline)
             setOnClickListener(onClick)
         }
 
@@ -1046,7 +1059,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderIdeas() {
         activeAiSurface = AiSurface.PAGE
-        bottomNav.visibility = View.VISIBLE
+        syncBottomNav(R.id.nav_ideas)
         val pick = repository.aiPick()
         val screen = screenScroll()
         screen.addView(topBar("AI") { renderSearch() })
@@ -1091,14 +1104,14 @@ class MainActivity : AppCompatActivity() {
     private fun aiPickCard(): View = card().apply {
         val strongest = marketAssets.maxByOrNull { it.changePercent }
         val weakest = marketAssets.minByOrNull { it.changePercent }
-        addView(text(strongest?.let { "${it.symbol} ${formatPercent(it.changePercent)}" } ?: "Muat data market", 34f, if (strongest?.isPositive != false) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
-        addView(text("Pilihan berbasis momentum 24 jam dan data market real", 13f, R.color.newsin_text_muted))
+        addView(text(strongest?.let { "${it.symbol} ${formatPercent(it.changePercent)}" } ?: "Muat data market", 34f, if (strongest?.isPositive != false) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD))
+        addView(text("Pilihan berbasis momentum 24 jam dan data market real", 13f, R.color.marketedge_text_muted))
         addGap(12)
-        addView(performanceBar(0.86f, "Aset terkuat", strongest?.symbol ?: "-", R.color.newsin_accent))
+        addView(performanceBar(0.86f, "Aset terkuat", strongest?.symbol ?: "-", R.color.marketedge_accent))
         addGap(8)
-        addView(performanceBar(0.32f, "Aset terlemah", weakest?.symbol ?: "-", R.color.newsin_text_muted))
+        addView(performanceBar(0.32f, "Aset terlemah", weakest?.symbol ?: "-", R.color.marketedge_text_muted))
         addGap(12)
-        addView(text(aiPickExplanation(strongest, weakest), 14f, R.color.newsin_text_secondary))
+        addView(text(aiPickExplanation(strongest, weakest), 14f, R.color.marketedge_text_secondary))
     }
 
     private fun aiPickExplanation(strongest: MarketAsset?, weakest: MarketAsset?): String = when {
@@ -1110,16 +1123,16 @@ class MainActivity : AppCompatActivity() {
     private fun newsImpactCard(): View = card().apply {
         val latest = newsArticles.firstOrNull()
         val strongest = marketAssets.maxByOrNull { kotlin.math.abs(it.changePercent) }
-        addView(text(latest?.title ?: "Memuat berita terbaru...", 17f, R.color.newsin_text_primary, Typeface.BOLD))
+        addView(text(latest?.title ?: "Memuat berita terbaru...", 17f, R.color.marketedge_text_primary, Typeface.BOLD))
         addGap(6)
-        addView(text(latest?.let { "${it.source} • ${it.timeAgo}" } ?: "Headline terbaru", 12f, R.color.newsin_text_muted))
+        addView(text(latest?.let { "${it.source} • ${it.timeAgo}" } ?: "Headline terbaru", 12f, R.color.marketedge_text_muted))
         addGap(10)
         val impact = if (latest != null && strongest != null) {
             "Pertanyaan yang bagus untuk AI: berita ini memengaruhi sentimen risiko atau tidak, dan apakah ada kaitannya dengan pergerakan ${strongest.symbol} ${formatPercent(strongest.changePercent)}?"
         } else {
             "AI akan membantu menjelaskan apakah sebuah berita kemungkinan berdampak ke aset, sentimen pasar, atau hanya headline umum."
         }
-        addView(text(impact, 14f, R.color.newsin_text_secondary))
+        addView(text(impact, 14f, R.color.marketedge_text_secondary))
         if (latest != null) {
             addGap(12)
             addView(actionButton("Tanyakan Berita Ini") { askAiAboutNews(latest) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
@@ -1136,7 +1149,7 @@ class MainActivity : AppCompatActivity() {
             row.addView(infoCard("Berita sedang dimuat."))
         } else {
             articles.forEach { article ->
-                row.addView(aiNewsContextCard(article), LinearLayout.LayoutParams(dp(238), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                row.addView(aiNewsContextCard(article), LinearLayout.LayoutParams(dp(206), dp(176)).apply {
                     marginEnd = dp(10)
                 })
             }
@@ -1149,12 +1162,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun aiNewsContextCard(article: NewsArticle): View = card().apply {
         setPadding(dp(12), dp(12), dp(12), dp(12))
-        addView(articleImage(article, 94))
+        addView(articleImage(article, 74), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(74)))
         addGap(10)
-        addView(text(article.title, 14f, R.color.newsin_text_primary, Typeface.BOLD).apply { maxLines = 3 })
+        addView(text(article.title, 13f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+        })
         addGap(4)
-        addView(text("${article.source} • ${article.category}", 11f, R.color.newsin_text_muted))
-        addGap(10)
+        addView(text("${article.source} • ${article.category}", 10f, R.color.marketedge_text_muted).apply {
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        })
+        addView(Space(context), LinearLayout.LayoutParams(1, 0, 1f))
         addView(actionButton("Tanyakan AI") { askAiAboutNews(article) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)))
         setOnClickListener { askAiAboutNews(article) }
     }
@@ -1169,7 +1188,7 @@ class MainActivity : AppCompatActivity() {
             row.addView(infoCard("Aset sedang dimuat."))
         } else {
             assets.forEach { asset ->
-                row.addView(aiAssetContextCard(asset), LinearLayout.LayoutParams(dp(176), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                row.addView(aiAssetContextCard(asset), LinearLayout.LayoutParams(dp(144), dp(134)).apply {
                     marginEnd = dp(10)
                 })
             }
@@ -1182,13 +1201,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun aiAssetContextCard(asset: MarketAsset): View = card().apply {
         setPadding(dp(12), dp(12), dp(12), dp(12))
-        addView(text(asset.symbol, 22f, R.color.newsin_text_primary, Typeface.BOLD))
-        addGap(4)
-        addView(text(asset.name, 12f, R.color.newsin_text_muted).apply { maxLines = 1 })
-        addGap(8)
-        addView(text(asset.price, 15f, R.color.newsin_text_primary, Typeface.BOLD))
-        addView(text(formatPercent(asset.changePercent), 18f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
-        addGap(10)
+        addView(text(asset.symbol, 21f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        })
+        addGap(2)
+        addView(text(asset.name, 10f, R.color.marketedge_text_muted).apply {
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        })
+        addGap(6)
+        addView(text(asset.price, 13f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        })
+        addView(text(formatPercent(asset.changePercent), 16f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD))
+        addView(Space(context), LinearLayout.LayoutParams(1, 0, 1f))
         addView(actionButton("Tanyakan") { askAiAboutAsset(asset) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)))
         setOnClickListener { askAiAboutAsset(asset) }
     }
@@ -1234,10 +1262,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun performanceBar(percent: Float, label: String, value: String, colorRes: Int): View {
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        box.addView(text("$label  $value", 13f, R.color.newsin_text_secondary, Typeface.BOLD))
+        box.addView(text("$label  $value", 13f, R.color.marketedge_text_secondary, Typeface.BOLD))
         box.addGap(5)
         val track = FrameLayout(this).apply {
-            background = rounded(R.color.newsin_card_soft, 8)
+            background = rounded(R.color.marketedge_card_soft, 8)
             addView(View(context).apply { background = rounded(colorRes, 8) }, FrameLayout.LayoutParams(0, dp(10)).apply {
                 width = (resources.displayMetrics.widthPixels * percent).toInt().coerceAtLeast(dp(40))
             })
@@ -1247,30 +1275,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun championItem(champion: PastChampion): View = card().apply {
-        addView(text("${champion.symbol}  ${champion.companyName}", 16f, R.color.newsin_text_primary, Typeface.BOLD))
+        addView(text("${champion.symbol}  ${champion.companyName}", 16f, R.color.marketedge_text_primary, Typeface.BOLD))
         addGap(5)
-        addView(text("${champion.returnPercent} sejak ditambahkan", 20f, R.color.newsin_positive, Typeface.BOLD))
+        addView(text("${champion.returnPercent} sejak ditambahkan", 20f, R.color.marketedge_positive, Typeface.BOLD))
         addGap(7)
-        addView(text("${champion.dateAdded} - ${champion.dateRemoved} • ${champion.addedPrice} → ${champion.removedPrice}", 12f, R.color.newsin_text_muted))
+        addView(text("${champion.dateAdded} - ${champion.dateRemoved} • ${champion.addedPrice} → ${champion.removedPrice}", 12f, R.color.marketedge_text_muted))
         addGap(8)
-        addView(text(champion.thesis, 13f, R.color.newsin_text_secondary))
+        addView(text(champion.thesis, 13f, R.color.marketedge_text_secondary))
     }
 
     private fun assetIdeaItem(asset: MarketAsset): View = card().apply {
-        addView(text("${asset.symbol}  ${asset.name}", 16f, R.color.newsin_text_primary, Typeface.BOLD))
+        addView(text("${asset.symbol}  ${asset.name}", 16f, R.color.marketedge_text_primary, Typeface.BOLD))
         addGap(5)
-        addView(text(formatPercent(asset.changePercent), 22f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
+        addView(text(formatPercent(asset.changePercent), 22f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD))
         addGap(7)
-        addView(text("${asset.price} • update ${asset.updatedAt}", 12f, R.color.newsin_text_muted))
+        addView(text("${asset.price} • update ${asset.updatedAt}", 12f, R.color.marketedge_text_muted))
         addGap(8)
-        addView(text("Harga, perubahan 24 jam, dan grafik mini diperbarui dari market feed.", 13f, R.color.newsin_text_secondary))
+        addView(text("Harga, perubahan 24 jam, dan grafik mini diperbarui dari market feed.", 13f, R.color.marketedge_text_secondary))
         addGap(10)
         addView(secondaryActionButton("Tanyakan AI tentang ${asset.symbol}") { askAiAboutAsset(asset) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(38)))
         setOnClickListener { askAiAboutAsset(asset) }
     }
 
     private fun renderWatchlist() {
-        bottomNav.visibility = View.VISIBLE
+        syncBottomNav(R.id.nav_watchlist)
         val screen = screenScroll()
         screen.addView(watchlistToolbar())
         if (marketAssets.isEmpty()) {
@@ -1299,7 +1327,7 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 0, 0, dp(12))
-            addView(text("Watchlist", 22f, R.color.newsin_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text("Watchlist", 22f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(iconButton(if (watchlistEditMode) "Selesai" else "Edit", if (watchlistEditMode) "✓" else "✎").apply {
                 setOnClickListener {
                     watchlistEditMode = !watchlistEditMode
@@ -1314,20 +1342,20 @@ class MainActivity : AppCompatActivity() {
     private fun watchlistSummaryCard(assets: List<MarketAsset>): View = card().apply {
         val gainers = assets.count { it.isPositive }
         val losers = assets.size - gainers
-        addView(text("Watchlist Saya", 18f, R.color.newsin_text_primary, Typeface.BOLD))
+        addView(text("Watchlist Saya", 18f, R.color.marketedge_text_primary, Typeface.BOLD))
         addGap(4)
-        addView(text("${assets.size} aset dipantau • Naik $gainers • Turun $losers", 12f, R.color.newsin_text_muted))
+        addView(text("${assets.size} aset dipantau • Naik $gainers • Turun $losers", 12f, R.color.marketedge_text_muted))
         val top = assets.maxByOrNull { kotlin.math.abs(it.changePercent) }
         if (top != null) {
             addGap(8)
-            addView(text("Pergerakan terbesar: ${top.symbol} ${formatPercent(top.changePercent)}", 13f, if (top.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
+            addView(text("Pergerakan terbesar: ${top.symbol} ${formatPercent(top.changePercent)}", 13f, if (top.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD))
         }
     }
 
     private fun emptyWatchlistCard(): View = card().apply {
-        addView(text("Belum ada aset di watchlist", 17f, R.color.newsin_text_primary, Typeface.BOLD))
+        addView(text("Belum ada aset di watchlist", 17f, R.color.marketedge_text_primary, Typeface.BOLD))
         addGap(6)
-        addView(text("Tekan tombol + atau buka detail market lalu tekan bintang untuk menambahkan aset.", 13f, R.color.newsin_text_secondary))
+        addView(text("Tekan tombol + atau buka detail market lalu tekan bintang untuk menambahkan aset.", 13f, R.color.marketedge_text_secondary))
     }
 
     private fun watchlistAssetItem(asset: MarketAsset): View =
@@ -1335,18 +1363,18 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(14), dp(12), dp(12), dp(12))
-            background = rounded(R.color.newsin_card, 8, R.color.newsin_hairline)
+            background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
             setOnClickListener { openMarketDetail(asset) }
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                addView(text("${asset.symbol}  ${asset.name}", 16f, R.color.newsin_text_primary, Typeface.BOLD).apply { maxLines = 1 })
+                addView(text("${asset.symbol}  ${asset.name}", 16f, R.color.marketedge_text_primary, Typeface.BOLD).apply { maxLines = 1 })
                 addGap(4)
-                addView(text("${asset.price} • ${asset.category} • ${asset.updatedAt}", 12f, R.color.newsin_text_muted).apply { maxLines = 1 })
+                addView(text("${asset.price} • ${asset.category} • ${asset.updatedAt}", 12f, R.color.marketedge_text_muted).apply { maxLines = 1 })
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.END
-                addView(text(formatPercent(asset.changePercent), 16f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD).apply { gravity = Gravity.END })
+                addView(text(formatPercent(asset.changePercent), 16f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD).apply { gravity = Gravity.END })
                 if (watchlistEditMode) {
                     addGap(8)
                     addView(secondaryActionButton("Hapus") {
@@ -1361,7 +1389,7 @@ class MainActivity : AppCompatActivity() {
         bottomNav.visibility = View.VISIBLE
         val screen = screenScroll()
         screen.addView(backBar("Tambah Watchlist") { renderWatchlist() })
-        screen.addView(text("Pilih aset yang ingin dipantau.", 13f, R.color.newsin_text_muted))
+        screen.addView(text("Pilih aset yang ingin dipantau.", 13f, R.color.marketedge_text_muted))
         screen.addGap(12)
         if (marketAssets.isEmpty()) {
             screen.addView(loadingCard("Memuat daftar aset..."))
@@ -1380,13 +1408,13 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(14), dp(12), dp(12), dp(12))
-            background = rounded(R.color.newsin_card, 8, R.color.newsin_hairline)
+            background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                addView(text("${asset.symbol}  ${asset.name}", 16f, R.color.newsin_text_primary, Typeface.BOLD))
-                addView(text("${asset.price} • ${formatPercent(asset.changePercent)}", 12f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative))
+                addView(text("${asset.symbol}  ${asset.name}", 16f, R.color.marketedge_text_primary, Typeface.BOLD))
+                addView(text("${asset.price} • ${formatPercent(asset.changePercent)}", 12f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative))
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(text(if (isInWatchlist(asset)) "✓" else "+", 22f, if (isInWatchlist(asset)) R.color.newsin_positive else R.color.newsin_accent, Typeface.BOLD).apply {
+            addView(text(if (isInWatchlist(asset)) "✓" else "+", 22f, if (isInWatchlist(asset)) R.color.marketedge_positive else R.color.marketedge_accent, Typeface.BOLD).apply {
                 gravity = Gravity.CENTER
             }, LinearLayout.LayoutParams(dp(42), dp(42)))
             setOnClickListener {
@@ -1409,7 +1437,7 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 0, 0, dp(12))
-            addView(text(title, 22f, R.color.newsin_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(title, 22f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(iconButton("Edit", first).apply { setOnClickListener { performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) } })
             addView(iconButton("Tambah", second).apply { setOnClickListener { performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) } }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginStart = dp(8) })
         }
@@ -1418,13 +1446,13 @@ class MainActivity : AppCompatActivity() {
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(text(asset.symbol, 14f, R.color.newsin_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(text(asset.price, 14f, R.color.newsin_text_secondary), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(text(formatPercent(asset.changePercent), 14f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
-        }
+            addView(text(asset.symbol, 14f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(asset.price, 14f, R.color.marketedge_text_secondary), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(formatPercent(asset.changePercent), 14f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD))
+    }
 
     private fun renderMore() {
-        bottomNav.visibility = View.VISIBLE
+        syncBottomNav(R.id.nav_more)
         val screen = screenScroll()
         screen.addView(topBar("Lainnya") { renderSearch() })
         screen.addView(profileCard())
@@ -1460,12 +1488,12 @@ class MainActivity : AppCompatActivity() {
             setTextColor(Color.WHITE)
             textSize = 22f
             typeface = Typeface.DEFAULT_BOLD
-            background = rounded(R.color.newsin_accent, 28)
+            background = rounded(R.color.marketedge_accent, 28)
         }, LinearLayout.LayoutParams(dp(56), dp(56)).apply { marginEnd = dp(12) })
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            addView(text("Rahmat", 18f, R.color.newsin_text_primary, Typeface.BOLD))
-            addView(text("rahmat@newsin.local", 13f, R.color.newsin_text_muted))
+            addView(text("Rahmat", 18f, R.color.marketedge_text_primary, Typeface.BOLD))
+            addView(text("rahmat@marketedge.local", 13f, R.color.marketedge_text_muted))
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
     }
 
@@ -1492,10 +1520,10 @@ class MainActivity : AppCompatActivity() {
         TextView(this).apply {
             text = label
             gravity = Gravity.CENTER
-            setTextColor(getColor(R.color.newsin_text_primary))
+            setTextColor(getColor(R.color.marketedge_text_primary))
             textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
-            background = rounded(R.color.newsin_card, 8, R.color.newsin_hairline)
+            background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
             setOnClickListener {
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                 if (label == "WarrenAI") renderAiChat()
@@ -1507,8 +1535,8 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(14), 0, dp(14))
-            addView(text(label, 15f, R.color.newsin_text_primary), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(text("›", 24f, R.color.newsin_text_muted))
+            addView(text(label, 15f, R.color.marketedge_text_primary), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text("›", 24f, R.color.marketedge_text_muted))
         }
 
     private fun renderAiChat() {
@@ -1517,7 +1545,7 @@ class MainActivity : AppCompatActivity() {
         if (chatMessages.isEmpty()) chatMessages.addAll(repository.initialChat())
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.newsin_background))
+            setBackgroundColor(getColor(R.color.marketedge_background))
             setPadding(dp(16), dp(12), dp(16), dp(12))
         }
         root.addView(backBar("WarrenAI") { renderMore() })
@@ -1556,19 +1584,19 @@ class MainActivity : AppCompatActivity() {
         val bubble = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(12), dp(12), dp(12))
-            background = if (message.fromUser) rounded(R.color.newsin_accent, 14) else rounded(R.color.newsin_card, 14, R.color.newsin_hairline)
-            addView(text(message.text, 14f, if (message.fromUser) R.color.white else R.color.newsin_text_primary))
+            background = if (message.fromUser) rounded(R.color.marketedge_accent, 14) else rounded(R.color.marketedge_card, 14, R.color.marketedge_hairline)
+            addView(text(message.text, 14f, if (message.fromUser) R.color.white else R.color.marketedge_text_primary))
             if (!message.fromUser && message.recommendations.isNotEmpty()) {
                 addGap(8)
                 message.recommendations.forEach { addView(assetRecommendation(it)); addGap(6) }
             }
             if (!message.fromUser && message.relatedNews.isNotEmpty()) {
                 addGap(8)
-                addView(text("Berita terkait", 12f, R.color.newsin_text_muted, Typeface.BOLD))
-                message.relatedNews.take(2).forEach { addView(text("• ${it.title}", 12f, R.color.newsin_text_secondary)) }
+                addView(text("Berita terkait", 12f, R.color.marketedge_text_muted, Typeface.BOLD))
+                message.relatedNews.take(2).forEach { addView(text("• ${it.title}", 12f, R.color.marketedge_text_secondary)) }
             }
             addGap(4)
-            addView(text(message.timestamp, 11f, if (message.fromUser) R.color.white else R.color.newsin_text_muted))
+            addView(text(message.timestamp, 11f, if (message.fromUser) R.color.white else R.color.marketedge_text_muted))
         }
         wrapper.addView(bubble, LinearLayout.LayoutParams((resources.displayMetrics.widthPixels * 0.78f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT))
         return wrapper
@@ -1579,10 +1607,10 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
-            background = rounded(R.color.newsin_surface, 8, R.color.newsin_hairline)
-            addView(text(asset.symbol, 13f, R.color.newsin_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(text(asset.price, 13f, R.color.newsin_text_secondary), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(text(formatPercent(asset.changePercent), 13f, if (asset.isPositive) R.color.newsin_positive else R.color.newsin_negative, Typeface.BOLD))
+            background = rounded(R.color.marketedge_surface, 8, R.color.marketedge_hairline)
+            addView(text(asset.symbol, 13f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(asset.price, 13f, R.color.marketedge_text_secondary), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(formatPercent(asset.changePercent), 13f, if (asset.isPositive) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD))
         }
 
     private fun renderSearch(onBack: () -> Unit = { renderMarket() }) {
@@ -1673,20 +1701,20 @@ class MainActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 0, 0, dp(12))
             addView(iconButton("Kembali", "‹").apply { setOnClickListener { onBack() } }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginEnd = dp(10) })
-            addView(text(title, 22f, R.color.newsin_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(title, 22f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
 
     private fun infoCard(message: String): View = card().apply {
-        addView(text(message, 13f, R.color.newsin_text_muted))
+        addView(text(message, 13f, R.color.marketedge_text_muted))
     }
 
     private fun divider(): View = View(this).apply {
-        setBackgroundColor(getColor(R.color.newsin_hairline))
+        setBackgroundColor(getColor(R.color.marketedge_hairline))
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1))
     }
 
     private fun detailDivider(): View = View(this).apply {
-        setBackgroundColor(getColor(R.color.newsin_hairline))
+        setBackgroundColor(getColor(R.color.marketedge_hairline))
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)).apply {
             topMargin = dp(8)
             bottomMargin = dp(8)
@@ -1698,21 +1726,21 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(4), 0, dp(4))
-            addView(text(label, 18f, R.color.newsin_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(text(value, 18f, R.color.newsin_text_primary).apply {
+            addView(text(label, 18f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(value, 18f, R.color.marketedge_text_primary).apply {
                 gravity = Gravity.END
                 maxLines = 1
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
 
     private fun loadingCard(message: String): View = card().apply {
-        addView(text(message, 14f, R.color.newsin_text_secondary, Typeface.BOLD))
+        addView(text(message, 14f, R.color.marketedge_text_secondary, Typeface.BOLD))
     }
 
     private fun errorCard(title: String, message: String, retry: () -> Unit): View = card().apply {
-        addView(text(title, 16f, R.color.newsin_negative, Typeface.BOLD))
+        addView(text(title, 16f, R.color.marketedge_negative, Typeface.BOLD))
         addGap(6)
-        addView(text(message.ifBlank { "Periksa koneksi internet atau coba lagi beberapa saat lagi." }, 13f, R.color.newsin_text_secondary))
+        addView(text(message.ifBlank { "Periksa koneksi internet atau coba lagi beberapa saat lagi." }, 13f, R.color.marketedge_text_secondary))
         addGap(10)
         addView(actionButton("Coba Lagi") { retry() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
     }
@@ -1848,7 +1876,7 @@ class MainActivity : AppCompatActivity() {
             put("messages", JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "system")
-                    put("content", "Kamu adalah analis market NewsIN. Jawab dalam Bahasa Indonesia yang mudah dipahami. Jelaskan dampak berita ke aset, risiko, dan konteks, tapi jangan memberi saran investasi personal.")
+                    put("content", "Kamu adalah analis market MarketEdge. Jawab dalam Bahasa Indonesia yang mudah dipahami. Jelaskan dampak berita ke aset, risiko, dan konteks, tapi jangan memberi saran investasi personal.")
                 })
                 put(JSONObject().apply {
                     put("role", "user")

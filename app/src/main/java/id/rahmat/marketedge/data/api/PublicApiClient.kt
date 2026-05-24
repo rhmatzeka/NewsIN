@@ -1,10 +1,10 @@
-package id.rahmat.newsin.data.api
+package id.rahmat.marketedge.data.api
 
 import android.graphics.Color
-import id.rahmat.newsin.domain.model.AssetTag
-import id.rahmat.newsin.domain.model.MarketDetailStats
-import id.rahmat.newsin.domain.model.MarketAsset
-import id.rahmat.newsin.domain.model.NewsArticle
+import id.rahmat.marketedge.domain.model.AssetTag
+import id.rahmat.marketedge.domain.model.MarketDetailStats
+import id.rahmat.marketedge.domain.model.MarketAsset
+import id.rahmat.marketedge.domain.model.NewsArticle
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -232,7 +232,7 @@ class PublicApiClient {
             connectTimeout = 10_000
             readTimeout = 10_000
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "NewsIN Android")
+            setRequestProperty("User-Agent", "MarketEdge Android")
         }
         return try {
             val code = connection.responseCode

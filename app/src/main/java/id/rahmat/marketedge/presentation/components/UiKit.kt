@@ -1,4 +1,4 @@
-package id.rahmat.newsin.presentation.components
+package id.rahmat.marketedge.presentation.components
 
 import android.content.Context
 import android.content.res.ColorStateList
@@ -20,14 +20,14 @@ import android.widget.ScrollView
 import android.widget.Space
 import android.widget.TextView
 import androidx.core.view.setPadding
-import id.rahmat.newsin.R
+import id.rahmat.marketedge.R
 
 fun Context.dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
 fun Context.text(
     value: String,
     sizeSp: Float = 14f,
-    colorRes: Int = R.color.newsin_text_primary,
+    colorRes: Int = R.color.marketedge_text_primary,
     style: Int = Typeface.NORMAL
 ): TextView = TextView(this).apply {
     text = value
@@ -37,17 +37,17 @@ fun Context.text(
     includeFontPadding = true
 }
 
-fun Context.iconButton(label: String, symbol: String): TextView = text(symbol, 22f, R.color.newsin_text_primary, Typeface.BOLD).apply {
+fun Context.iconButton(label: String, symbol: String): TextView = text(symbol, 22f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
     contentDescription = label
     gravity = Gravity.CENTER
-    background = rounded(R.color.newsin_card, 18)
+    background = rounded(R.color.marketedge_card, 18)
     layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
 }
 
 fun Context.card(): LinearLayout = LinearLayout(this).apply {
     orientation = LinearLayout.VERTICAL
     setPadding(dp(14))
-    background = rounded(R.color.newsin_card, 8, R.color.newsin_hairline)
+    background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
 }
 
 fun Context.rounded(colorRes: Int, radiusDp: Int, strokeColorRes: Int? = null): GradientDrawable =
@@ -69,7 +69,7 @@ fun Context.screenScroll(): LinearLayout {
         setPadding(dp(16), dp(14), dp(16), dp(88))
     }
     val scroll = ScrollView(this).apply {
-        setBackgroundColor(getColor(R.color.newsin_background))
+        setBackgroundColor(getColor(R.color.marketedge_background))
         addView(container)
     }
     container.tag = scroll
@@ -92,21 +92,21 @@ fun Context.horizontalChips(labels: List<String>, selectedIndex: Int = 0): Horiz
 
 fun Context.chip(label: String, selected: Boolean = false, positive: Boolean? = null): TextView {
     val bg = when {
-        selected -> R.color.newsin_accent
-        positive == true -> R.color.newsin_card_soft
-        positive == false -> R.color.newsin_card_soft
-        else -> R.color.newsin_surface
+        selected -> R.color.marketedge_accent
+        positive == true -> R.color.marketedge_card_soft
+        positive == false -> R.color.marketedge_card_soft
+        else -> R.color.marketedge_surface
     }
     val color = when {
         selected -> R.color.white
-        positive == true -> R.color.newsin_positive
-        positive == false -> R.color.newsin_negative
-        else -> R.color.newsin_text_secondary
+        positive == true -> R.color.marketedge_positive
+        positive == false -> R.color.marketedge_negative
+        else -> R.color.marketedge_text_secondary
     }
     return text(label, 13f, color, if (selected) Typeface.BOLD else Typeface.NORMAL).apply {
         gravity = Gravity.CENTER
         setPadding(dp(12), dp(7), dp(12), dp(7))
-        background = rounded(bg, 18, if (selected) null else R.color.newsin_hairline)
+        background = rounded(bg, 18, if (selected) null else R.color.marketedge_hairline)
         layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             marginEnd = dp(8)
         }
@@ -122,8 +122,8 @@ fun Context.topBar(title: String, showLogo: Boolean = false, onSearch: (() -> Un
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         setPadding(0, 0, 0, dp(10))
-        val titleView = text(title, if (showLogo) 24f else 22f, R.color.newsin_text_primary, Typeface.BOLD).apply {
-            if (showLogo) setTextColor(getColor(R.color.newsin_accent))
+        val titleView = text(title, if (showLogo) 24f else 22f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+            if (showLogo) setTextColor(getColor(R.color.marketedge_accent))
         }
         addView(titleView, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         addView(iconButton("Cari", "⌕").apply { setOnClickListener { onSearch?.invoke() } })
@@ -133,25 +133,25 @@ fun Context.sectionHeader(title: String, action: String? = null): LinearLayout =
     LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        addView(text(title, 18f, R.color.newsin_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        action?.let { addView(text(it, 13f, R.color.newsin_accent, Typeface.BOLD)) }
+        addView(text(title, 18f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        action?.let { addView(text(it, 13f, R.color.marketedge_accent, Typeface.BOLD)) }
     }
 
 fun Context.editText(hintText: String): EditText = EditText(this).apply {
     hint = hintText
-    setHintTextColor(getColor(R.color.newsin_text_muted))
-    setTextColor(getColor(R.color.newsin_text_primary))
+    setHintTextColor(getColor(R.color.marketedge_text_muted))
+    setTextColor(getColor(R.color.marketedge_text_primary))
     setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
     setSingleLine(true)
     imeOptions = EditorInfo.IME_ACTION_SEND
     inputType = InputType.TYPE_CLASS_TEXT
-    background = rounded(R.color.newsin_card, 22, R.color.newsin_hairline)
+    background = rounded(R.color.marketedge_card, 22, R.color.marketedge_hairline)
     setPadding(dp(14), 0, dp(14), 0)
 }
 
 fun Context.coloredBlock(color: Int, heightDp: Int = 142): FrameLayout = FrameLayout(this).apply {
     background = roundedRaw(color, 8)
-    addView(text("NewsIN", 13f, R.color.white, Typeface.BOLD).apply {
+    addView(text("MarketEdge", 13f, R.color.white, Typeface.BOLD).apply {
         alpha = 0.82f
         setPadding(dp(12))
     })

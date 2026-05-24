@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="newsin_background">#0D0D0D</color>
-    <color name="newsin_surface">#1A1A1A</color>
-    <color name="newsin_card">#222222</color>
-    <color name="newsin_card_soft">#2A2A2A</color>
-    <color name="newsin_accent">#FF6B00</color>
-    <color name="newsin_accent_deep">#D95800</color>
-    <color name="newsin_positive">#18C36B</color>
-    <color name="newsin_negative">#FF4D4D</color>
-    <color name="newsin_text_primary">#F5F5F5</color>
-    <color name="newsin_text_secondary">#B8B8B8</color>
-    <color name="newsin_text_muted">#7A7A7A</color>
-    <color name="newsin_hairline">#333333</color>
+    <color name="marketedge_background">#0D0D0D</color>
+    <color name="marketedge_surface">#1A1A1A</color>
+    <color name="marketedge_card">#222222</color>
+    <color name="marketedge_card_soft">#2A2A2A</color>
+    <color name="marketedge_accent">#FF6B00</color>
+    <color name="marketedge_accent_deep">#D95800</color>
+    <color name="marketedge_positive">#18C36B</color>
+    <color name="marketedge_negative">#FF4D4D</color>
+    <color name="marketedge_text_primary">#F5F5F5</color>
+    <color name="marketedge_text_secondary">#B8B8B8</color>
+    <color name="marketedge_text_muted">#7A7A7A</color>
+    <color name="marketedge_hairline">#333333</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>

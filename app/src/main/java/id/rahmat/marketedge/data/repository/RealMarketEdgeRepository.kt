@@ -1,21 +1,21 @@
-package id.rahmat.newsin.data.repository
+package id.rahmat.marketedge.data.repository
 
-import id.rahmat.newsin.data.api.PublicApiClient
-import id.rahmat.newsin.domain.model.AiStockPick
-import id.rahmat.newsin.domain.model.ChatMessage
-import id.rahmat.newsin.domain.model.MarketAsset
-import id.rahmat.newsin.domain.model.NewsArticle
-import id.rahmat.newsin.domain.model.PastChampion
-import id.rahmat.newsin.domain.model.WatchlistGroup
-import id.rahmat.newsin.domain.repository.NewsInRepository
+import id.rahmat.marketedge.data.api.PublicApiClient
+import id.rahmat.marketedge.domain.model.AiStockPick
+import id.rahmat.marketedge.domain.model.ChatMessage
+import id.rahmat.marketedge.domain.model.MarketAsset
+import id.rahmat.marketedge.domain.model.NewsArticle
+import id.rahmat.marketedge.domain.model.PastChampion
+import id.rahmat.marketedge.domain.model.WatchlistGroup
+import id.rahmat.marketedge.domain.repository.MarketEdgeRepository
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-class RealNewsInRepository(
+class RealMarketEdgeRepository(
     private val apiClient: PublicApiClient
-) : NewsInRepository {
+) : MarketEdgeRepository {
     override fun marketAssets(): List<MarketAsset> =
         apiClient.fetchCurrencyAndCommodityMarkets() + apiClient.fetchCoinGeckoMarkets()
 
