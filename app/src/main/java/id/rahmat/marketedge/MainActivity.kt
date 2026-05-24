@@ -1773,9 +1773,11 @@ class MainActivity : AppCompatActivity() {
         screen.addView(quickGrid())
         screen.addGap(16)
         screen.addView(sectionHeader("Monitor"))
-        listOf("Peringatan", "Item Tersimpan", "Sentimen Saya", "Versi Bebas Iklan").forEach {
-            screen.addView(menuRow(it))
-        }
+        screen.addGap(2)
+        screen.addView(menuRow("Peringatan", "Pantau harga, berita, dan volatilitas", "3 aktif") { renderMonitorDetail("Peringatan") })
+        screen.addView(menuRow("Item Tersimpan", "Berita dan aset yang kamu simpan", "${savedArticleIds.size} item") { renderMonitorDetail("Item Tersimpan") })
+        screen.addView(menuRow("Sentimen Saya", "Ringkasan mood market dari watchlist", marketSentimentLabel()) { renderMonitorDetail("Sentimen Saya") })
+        screen.addView(menuRow("Versi Bebas Iklan", "Kelola pengalaman premium", "Pro") { renderMonitorDetail("Versi Bebas Iklan") })
         screen.addGap(16)
         screen.addView(sectionHeader("Live Market"))
         screen.addGap(8)
@@ -1804,6 +1806,11 @@ class MainActivity : AppCompatActivity() {
             addView(text("Rahmat", 18f, R.color.marketedge_text_primary, Typeface.BOLD))
             addView(text("rahmat@marketedge.local", 13f, R.color.marketedge_text_muted))
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addView(text("›", 26f, R.color.marketedge_text_muted))
+        setOnClickListener {
+            performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            renderProfile()
+        }
     }
 
     private fun upgradeBanner(): View = card().apply {
@@ -1835,18 +1842,276 @@ class MainActivity : AppCompatActivity() {
             background = rounded(R.color.marketedge_card, 8, R.color.marketedge_hairline)
             setOnClickListener {
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                if (label == "WarrenAI") renderAiChat()
+                if (label == "WarrenAI") renderAiChat() else renderQuickDetail(label)
             }
         }
 
-    private fun menuRow(label: String): View =
+    private fun menuRow(label: String, subtitle: String, badge: String, onClick: () -> Unit): View =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(14), 0, dp(14))
-            addView(text(label, 15f, R.color.marketedge_text_primary), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(text("›", 24f, R.color.marketedge_text_muted))
+            setPadding(0, dp(12), 0, dp(12))
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(text(label, 15f, R.color.marketedge_text_primary, Typeface.BOLD))
+                addGap(3)
+                addView(text(subtitle, 11f, R.color.marketedge_text_muted).apply {
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                })
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(badge, 11f, R.color.marketedge_accent, Typeface.BOLD).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(9), dp(4), dp(9), dp(4))
+                background = rounded(R.color.marketedge_card, 12, R.color.marketedge_hairline)
+            })
+            addView(text("›", 24f, R.color.marketedge_text_muted), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                marginStart = dp(10)
+            })
+            setOnClickListener {
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                onClick()
+            }
         }
+
+    private fun renderProfile() {
+        val screen = moreChildScreen("Profil")
+        screen.addView(profileHero())
+        screen.addGap(14)
+        screen.addView(sectionHeader("Akun"))
+        screen.addGap(8)
+        screen.addView(card().apply {
+            addView(statRow("Nama", "Rahmat"))
+            addGap(8)
+            addView(statRow("Email", "rahmat@marketedge.local"))
+            addGap(8)
+            addView(statRow("Status", "MarketEdge Basic"))
+            addGap(8)
+            addView(statRow("Watchlist", "${watchlistSymbols.size} aset"))
+        })
+        screen.addGap(14)
+        screen.addView(sectionHeader("Preferensi"))
+        screen.addGap(8)
+        screen.addView(card().apply {
+            addView(settingsPill("Tema", "Dark"))
+            addGap(8)
+            addView(settingsPill("Notifikasi", "Harga dan berita"))
+            addGap(8)
+            addView(settingsPill("Bahasa", "Indonesia"))
+        })
+        screen.addGap(14)
+        screen.addView(actionButton("Kelola Watchlist") { renderWatchlist() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)))
+        screen.addGap(10)
+        screen.addView(secondaryActionButton("Buka WarrenAI") { renderAiChat() }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
+        displayScroll(screen)
+    }
+
+    private fun profileHero(): View = card().apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(14), dp(14), dp(14), dp(14))
+        addView(TextView(context).apply {
+            text = "R"
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            textSize = 28f
+            typeface = Typeface.DEFAULT_BOLD
+            background = rounded(R.color.marketedge_accent, 34)
+        }, LinearLayout.LayoutParams(dp(68), dp(68)).apply { marginEnd = dp(14) })
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(text("Rahmat", 22f, R.color.marketedge_text_primary, Typeface.BOLD))
+            addGap(2)
+            addView(text("rahmat@marketedge.local", 12f, R.color.marketedge_text_muted))
+            addGap(8)
+            addView(text("Basic • ${watchlistSymbols.size} aset dipantau", 12f, R.color.marketedge_accent, Typeface.BOLD))
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+    }
+
+    private fun renderMonitorDetail(title: String) {
+        val screen = moreChildScreen(title)
+        when (title) {
+            "Peringatan" -> renderAlertsContent(screen)
+            "Item Tersimpan" -> renderSavedItemsContent(screen)
+            "Sentimen Saya" -> renderSentimentContent(screen)
+            "Versi Bebas Iklan" -> renderAdFreeContent(screen)
+        }
+        displayScroll(screen)
+    }
+
+    private fun renderAlertsContent(screen: LinearLayout) {
+        screen.addView(infoCard("Peringatan membantu kamu menangkap perubahan harga, lonjakan berita, dan aset yang bergerak di luar kebiasaan."))
+        screen.addGap(12)
+        screen.addView(sectionHeader("Aktif", "3 alert"))
+        screen.addGap(8)
+        listOf(
+            "BTC bergerak lebih dari 3% dalam 24 jam" to "Harga",
+            "Headline baru dari sumber NASA atau SpaceX" to "Berita",
+            "Watchlist melewati volatilitas harian tinggi" to "Risiko"
+        ).forEach { (label, tag) ->
+            screen.addView(monitorCard(label, tag, "Siap dipantau"))
+            screen.addGap(8)
+        }
+        screen.addGap(6)
+        screen.addView(actionButton("Tambah Peringatan") { it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)))
+    }
+
+    private fun renderSavedItemsContent(screen: LinearLayout) {
+        if (newsArticles.isEmpty()) loadNews { renderMonitorDetail("Item Tersimpan") }
+        val saved = newsArticles.filter { savedArticleIds.contains(it.id) }
+        screen.addView(infoCard("Semua berita yang kamu bookmark akan muncul di sini untuk dibaca ulang atau ditanyakan ke WarrenAI."))
+        screen.addGap(12)
+        if (saved.isEmpty()) {
+            screen.addView(emptyStateCard("Belum ada item tersimpan", "Buka Berita, tekan ikon bookmark, lalu itemnya akan muncul di halaman ini."))
+        } else {
+            saved.forEach { article ->
+                screen.addView(newsSmall(article))
+                screen.addGap(10)
+            }
+        }
+    }
+
+    private fun renderSentimentContent(screen: LinearLayout) {
+        if (marketAssets.isEmpty()) loadMarkets { renderMonitorDetail("Sentimen Saya") }
+        val strongest = marketAssets.maxByOrNull { it.changePercent }
+        val weakest = marketAssets.minByOrNull { it.changePercent }
+        screen.addView(card().apply {
+            addView(text(marketSentimentLabel(), 26f, sentimentColor(), Typeface.BOLD))
+            addGap(4)
+            addView(text("Dihitung dari aset real yang berhasil dimuat dan watchlist aktif.", 12f, R.color.marketedge_text_muted))
+            addGap(12)
+            addView(performanceBar(0.72f, "Terkuat", strongest?.symbol ?: "-", R.color.marketedge_positive))
+            addGap(6)
+            addView(performanceBar(0.38f, "Terlemah", weakest?.symbol ?: "-", R.color.marketedge_negative))
+        })
+        screen.addGap(12)
+        screen.addView(sectionHeader("Watchlist"))
+        screen.addGap(8)
+        val watched = watchlistAssets()
+        if (watched.isEmpty()) {
+            screen.addView(emptyStateCard("Watchlist belum punya data", "Tambahkan aset dari halaman Pasar untuk melihat sentimen personal."))
+        } else {
+            watched.forEach {
+                screen.addView(assetIdeaItem(it))
+                screen.addGap(8)
+            }
+        }
+    }
+
+    private fun renderAdFreeContent(screen: LinearLayout) {
+        screen.addView(card().apply {
+            background = roundedRaw(Color.rgb(255, 107, 0), 8)
+            addView(text("MarketEdge Pro", 24f, R.color.white, Typeface.BOLD))
+            addGap(4)
+            addView(text("Tampilan bebas iklan, data premium, dan ringkasan AI lebih cepat.", 13f, R.color.white))
+        })
+        screen.addGap(12)
+        screen.addView(sectionHeader("Benefit"))
+        screen.addGap(8)
+        listOf(
+            "Tanpa banner promosi di halaman utama",
+            "Alert market dan berita prioritas",
+            "Ringkasan WarrenAI dengan konteks lebih panjang",
+            "Watchlist premium tanpa batas"
+        ).forEach {
+            screen.addView(monitorCard(it, "Pro", "Termasuk"))
+            screen.addGap(8)
+        }
+        screen.addGap(6)
+        screen.addView(actionButton("Aktifkan Versi Bebas Iklan") { it.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)))
+    }
+
+    private fun renderQuickDetail(label: String) {
+        val screen = moreChildScreen(label)
+        when (label) {
+            "Kalender" -> {
+                screen.addView(infoCard("Kalender market menampilkan event yang perlu dipantau sebelum harga bergerak besar."))
+                screen.addGap(12)
+                listOf("Rilis data inflasi global", "Update suku bunga bank sentral", "Earnings teknologi besar").forEach {
+                    screen.addView(monitorCard(it, "Event", "Minggu ini"))
+                    screen.addGap(8)
+                }
+            }
+            "Temukan Broker Terbaik" -> {
+                screen.addView(infoCard("Bandingkan broker dari biaya, aset tersedia, dan kemudahan deposit sebelum membuat keputusan."))
+                screen.addGap(12)
+                listOf("Biaya transaksi rendah", "Aset global lengkap", "Aplikasi mudah dipakai").forEach {
+                    screen.addView(monitorCard(it, "Kriteria", "Cek"))
+                    screen.addGap(8)
+                }
+            }
+            else -> {
+                screen.addView(infoCard("Daftar aset undervalued memakai data market yang tersedia sebagai bahan riset awal."))
+                screen.addGap(12)
+                marketAssets.sortedBy { it.changePercent }.take(5).forEach {
+                    screen.addView(assetIdeaItem(it))
+                    screen.addGap(8)
+                }
+            }
+        }
+        displayScroll(screen)
+    }
+
+    private fun moreChildScreen(title: String): LinearLayout {
+        bottomNav.visibility = View.GONE
+        setChildBack { renderMore() }
+        return screenScroll().apply {
+            addView(backBar(title) { renderMore() })
+        }
+    }
+
+    private fun monitorCard(title: String, tag: String, status: String): View = card().apply {
+        setPadding(dp(12), dp(10), dp(12), dp(10))
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(text(title, 14f, R.color.marketedge_text_primary, Typeface.BOLD).apply {
+                maxLines = 2
+                ellipsize = TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(tag, 11f, R.color.marketedge_accent, Typeface.BOLD).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                background = rounded(R.color.marketedge_card_soft, 10, R.color.marketedge_hairline)
+            })
+        })
+        addGap(6)
+        addView(text(status, 12f, R.color.marketedge_text_muted))
+    }
+
+    private fun settingsPill(label: String, value: String): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(text(label, 14f, R.color.marketedge_text_primary, Typeface.BOLD), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text(value, 12f, R.color.marketedge_text_secondary).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(9), dp(5), dp(9), dp(5))
+                background = rounded(R.color.marketedge_card_soft, 12, R.color.marketedge_hairline)
+            })
+        }
+
+    private fun emptyStateCard(title: String, message: String): View = card().apply {
+        addView(text(title, 15f, R.color.marketedge_text_primary, Typeface.BOLD))
+        addGap(5)
+        addView(text(message, 12f, R.color.marketedge_text_muted))
+    }
+
+    private fun marketSentimentLabel(): String {
+        val movers = marketAssets.takeIf { it.isNotEmpty() } ?: return "Netral"
+        val average = movers.take(20).map { it.changePercent }.average()
+        return when {
+            average > 1.0 -> "Positif"
+            average < -1.0 -> "Negatif"
+            else -> "Netral"
+        }
+    }
+
+    private fun sentimentColor(): Int = when (marketSentimentLabel()) {
+        "Positif" -> R.color.marketedge_positive
+        "Negatif" -> R.color.marketedge_negative
+        else -> R.color.marketedge_accent
+    }
 
     private fun renderAiChat() {
         activeAiSurface = AiSurface.FULLSCREEN
