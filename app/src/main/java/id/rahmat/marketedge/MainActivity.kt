@@ -1276,16 +1276,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun aiPickCard(): View = card().apply {
+        setPadding(dp(12), dp(10), dp(12), dp(10))
         val strongest = marketAssets.maxByOrNull { it.changePercent }
         val weakest = marketAssets.minByOrNull { it.changePercent }
-        addView(text(strongest?.let { "${it.symbol} ${formatPercent(it.changePercent)}" } ?: "Muat data market", 34f, if (strongest?.isPositive != false) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD))
-        addView(text("Pilihan berbasis momentum 24 jam dan data market real", 13f, R.color.marketedge_text_muted))
-        addGap(12)
-        addView(performanceBar(0.86f, "Aset terkuat", strongest?.symbol ?: "-", R.color.marketedge_accent))
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(text(strongest?.let { "${it.symbol} ${formatPercent(it.changePercent)}" } ?: "Muat data market", 24f, if (strongest?.isPositive != false) R.color.marketedge_positive else R.color.marketedge_negative, Typeface.BOLD).apply {
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(text("24j", 11f, R.color.marketedge_text_muted, Typeface.BOLD).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                background = rounded(R.color.marketedge_card_soft, 8, R.color.marketedge_hairline)
+            })
+        })
+        addGap(2)
+        addView(text("Momentum market real dan headline terbaru", 11f, R.color.marketedge_text_muted))
         addGap(8)
-        addView(performanceBar(0.32f, "Aset terlemah", weakest?.symbol ?: "-", R.color.marketedge_text_muted))
-        addGap(12)
-        addView(text(aiPickExplanation(strongest, weakest), 14f, R.color.marketedge_text_secondary))
+        addView(performanceBar(0.86f, "Terkuat", strongest?.symbol ?: "-", R.color.marketedge_accent))
+        addGap(5)
+        addView(performanceBar(0.32f, "Terlemah", weakest?.symbol ?: "-", R.color.marketedge_text_muted))
+        addGap(8)
+        addView(text(aiPickExplanation(strongest, weakest), 12f, R.color.marketedge_text_secondary).apply {
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+        })
     }
 
     private fun aiPickExplanation(strongest: MarketAsset?, weakest: MarketAsset?): String = when {
@@ -1442,15 +1459,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun performanceBar(percent: Float, label: String, value: String, colorRes: Int): View {
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        box.addView(text("$label  $value", 13f, R.color.marketedge_text_secondary, Typeface.BOLD))
-        box.addGap(5)
+        box.addView(text("$label  $value", 11f, R.color.marketedge_text_secondary, Typeface.BOLD))
+        box.addGap(3)
         val track = FrameLayout(this).apply {
             background = rounded(R.color.marketedge_card_soft, 8)
-            addView(View(context).apply { background = rounded(colorRes, 8) }, FrameLayout.LayoutParams(0, dp(10)).apply {
+            addView(View(context).apply { background = rounded(colorRes, 8) }, FrameLayout.LayoutParams(0, dp(7)).apply {
                 width = (resources.displayMetrics.widthPixels * percent).toInt().coerceAtLeast(dp(40))
             })
         }
-        box.addView(track, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(10)))
+        box.addView(track, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(7)))
         return box
     }
 
